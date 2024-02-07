@@ -257,7 +257,7 @@ define([
 
 	//Create listing script
 	var cmd = "%%bash \n";
-	cmd += "ec3Out=\"`python2 /usr/local/bin/ec3 list`\"\n";
+	cmd += "ec3Out=\"`python3 /usr/local/bin/ec3 list`\"\n";
 	//Print ec3 output on stderr or stdout
 	cmd += "if [ $? -ne 0 ]; then \n";
 	cmd += "    >&2 echo -e $ec3Out \n";	
@@ -1014,7 +1014,7 @@ define([
 	{
 	    //Check if the deploy needs this template
 	    if(obj.apps.indexOf(localApplications[i]) > -1){
-		var completeName = localTemplatePrefix + localApplications[i] + ".radl";
+		var completeName = localTemplatePrefix + localApplications[i] + ".yml";
 		cmd += "curl -s " + templateURL + "/"
 		    + completeName
 		    +  " > $PWD/templates/" + completeName + " \n";
@@ -1022,173 +1022,155 @@ define([
 	}
         
     //Get also queue radl
-    var completeName = localTemplatePrefix + obj.queue + ".radl";
+    var completeName = localTemplatePrefix + obj.queue + ".yml";
 	cmd += "curl -s " + templateURL + "/"
 	    + completeName
 	    +  " > $PWD/templates/" + completeName + " \n";                
 
-	//Change "__MIN_NODES__" in local templates
-	cmd += "sed -i -e 's/__MIN_NODES__/" + obj.worker.minNumber + "/g' $PWD/templates/* \n";
-	cmd += "sed -i -e 's/__MAX_NODES__/" + obj.worker.maxNumber + "/g' $PWD/templates/* \n";	    
-	//Change "__USER_NAME__" in local templates
-	cmd += "sed -i -e 's/__USER_NAME__/" + userReplace + "/g' $PWD/templates/* \n";
+	// //Change "__MIN_NODES__" in local templates
+	// cmd += "sed -i -e 's/__MIN_NODES__/" + obj.worker.minNumber + "/g' $PWD/templates/* \n";
+	// cmd += "sed -i -e 's/__MAX_NODES__/" + obj.worker.maxNumber + "/g' $PWD/templates/* \n";	    
+	// //Change "__USER_NAME__" in local templates
+	// cmd += "sed -i -e 's/__USER_NAME__/" + userReplace + "/g' $PWD/templates/* \n";
 	
 	//Create pipes
 	cmd += "mkfifo $PWD/" + pipeAuth + "\n";
 	//Write data to pipes/files
 	cmd += "echo -e \"";
 
+	cmd += "tosca_definitions_version: tosca_simple_yaml_1_0\n"
+
 	if(obj.deploymentType == "OpenNebula"){
-	    cmd += "description ubuntu_one (\n ";
+	    cmd += "description: Deploy on OpenNebula\n ";
 	} else if ( obj.deploymentType == "EC2"){
-	    cmd += "description ubuntu_EC2 (\n ";
+	    cmd += "description: Deploy on EC2 (\n ";
 	}
-	cmd += "kind = 'images' and\n ";
+	// cmd += "kind = 'images' and\n ";
 
-	if(obj.deploymentType == "OpenNebula"){
-	    cmd += "short = 'deploy on OpenNebula' and\n \
-    content = 'deploy on OpenNebula'\n "
-	} else if(obj.deploymentType == "EC2"){
-	    cmd += "short = 'deploy on AWS EC2' and\n \
-    content = 'deploy on AWS EC2'\n"	    
-	}
-	cmd += ")\n";
-	cmd += "\n";
+	cmd += "topology_template:\n ";
+	cmd += "  node_templates:\n ";
 
-    //Network
-	if(obj.deploymentType == "EC2"){
+    // //Network
+	// if(obj.deploymentType == "EC2"){
 
-        //VPC
-        if(obj.networkID.length > 0 && obj.subnetID.length > 0){
+    //     //VPC
+    //     if(obj.networkID.length > 0 && obj.subnetID.length > 0){
             
-            cmd += "network public ( \n";
-            cmd += "  provider_id = 'vpc-" + obj.networkID + ".subnet-" + obj.subnetID + "' \n ";
-            cmd += ")\n ";            
+    //         cmd += "network public ( \n";
+    //         cmd += "  provider_id = 'vpc-" + obj.networkID + ".subnet-" + obj.subnetID + "' \n ";
+    //         cmd += ")\n ";            
 		
-            cmd += "network private ( \n";
-            cmd += "  provider_id = 'vpc-" + obj.networkID + ".subnet-" + obj.subnetID + "' \n ";
-            cmd += ")\n ";            
+    //         cmd += "network private ( \n";
+    //         cmd += "  provider_id = 'vpc-" + obj.networkID + ".subnet-" + obj.subnetID + "' \n ";
+    //         cmd += ")\n ";            
 		
-        }
-    }
+    //     }
+    // }
         
 	//Frontend
-	cmd += "system front (\n ";
-
-	cmd += "disk.0.os.name = 'linux' and\n ";
+	cmd += "    front:\n ";
+	cmd += "      type: tosca.nodes.Compute\n ";
+	cmd += "      properties:\n ";
+	cmd += "        disk.0.os.name = 'linux'\n ";
 	
 	if(obj.deploymentType == "EC2"){        
-        
 	    //Image url
 	    if(obj.frontend.image.length > 0){
-		cmd += "disk.0.image.url ='" + obj.frontend.image + "' and\n ";
+		cmd += "        disk.0.image.url ='" + obj.frontend.image + "'\n ";
 	    }
-        
 	    //Username
 	    if(obj.frontend.user.length > 0){
-		cmd += "disk.0.os.credentials.username = '" + obj.frontend.user + "' and\n ";
+		cmd += "        disk.0.os.credentials.username = '" + obj.frontend.user + "'\n ";
 	    }
-
         //Instance type
-	    cmd += "instance_type = '" + obj.frontend.instance + "'\n ";
-        
+	    cmd += "        type = '" + obj.frontend.instance + "'\n ";
 	}
 	else if(obj.deploymentType == "OpenNebula"){
 	    
 	    if(obj.frontend.arch.length > 0){
-		cmd += "cpu.arch = '" + obj.frontend.arch + "' and\n ";
+		cmd += "        cpu.arch = '" + obj.frontend.arch + "'\n ";
 	    }
 	    if(obj.frontend.flavour.length > 0){
-            cmd += "disk.0.os.flavour = '" + obj.frontend.flavour + "' and\n ";
+            cmd += "        disk.0.os.flavour = '" + obj.frontend.flavour + "'\n ";
 	    }
 	    if(obj.frontend.version.length > 0){
-            cmd += "disk.0.os.version >= '" + obj.frontend.version + "' and\n ";
+            cmd += "        disk.0.os.version >= '" + obj.frontend.version + "'\n ";
 	    }
 	    if(obj.frontend.image.length > 0){
-            cmd += "disk.0.image.url ='" + obj.frontend.image + "' and\n ";
+            cmd += "        disk.0.image.url ='" + obj.frontend.image + "'\n ";
 	    }
 	    
 	    //Username
 	    if(obj.frontend.user.length > 0){
-            cmd += "disk.0.os.credentials.username = '" + obj.frontend.user + "' and\n ";
+            cmd += "        disk.0.os.credentials.username = '" + obj.frontend.user + "'\n ";
         }
-        
         if(obj.frontend.credentials.length > 0){
-            cmd += "disk.0.os.credentials.password = '" + obj.frontend.credentials + "' and\n ";
+            cmd += "        disk.0.os.credentials.password = '" + obj.frontend.credentials + "'\n ";
 	    }
         
-	    cmd += "cpu.count >= " + obj.frontend.CPUs + " and\n ";
-	    cmd += "memory.size >= " + obj.frontend.memory + "m \n ";
-        
+	    cmd += "        cpu.count >= " + obj.frontend.CPUs + "\n ";
+	    cmd += "        memory.size >= " + obj.frontend.memory + "m \n ";
 	    cmd += "\n"
-	    
 	}
-	cmd += ")\n";
 
 	//Workers
-	cmd += "system wn (\n ";
-	cmd += "ec3_node_type = 'wn' and\n ";
-    cmd += "disk.0.os.name ='linux' and\n ";
+	cmd += "    worker\n ";
+	cmd += "      type = 'tosca.nodes.Compute'\n ";
+	cmd += "      properties:\n ";
+	cmd += "        disk.0.os.name = 'linux'\n ";
 	//cmd += "net_interface.0.connection = 'net'\n ";
-	
-    if(obj.topology != "OSCAR"){
-        cmd += "ec3_max_instances = " + obj.worker.maxNumber + " and\n ";
-	    cmd += "ec3_destroy_interval = " + obj.destroyInterval + " and\n ";
-    }
 
 	if(obj.deploymentType == "EC2"){
 
 	    //Image url
 	    if(obj.worker.image.length > 0){
-            cmd += "disk.0.image.url ='" + obj.worker.image + "' and\n ";
+            cmd += "        disk.0.image.url ='" + obj.worker.image + "'\n ";
 	    }
         
 	    //Username
 	    if(obj.worker.user.length > 0){
-            cmd += "disk.0.os.credentials.username = '" + obj.worker.user + "' and\n ";
+            cmd += "        disk.0.os.credentials.username = '" + obj.worker.user + "'\n ";
 	    }
 
         //Instance type
-	    cmd += "instance_type = '" + obj.worker.instance + "'\n ";
+	    cmd += "        type = '" + obj.worker.instance + "'\n ";
         
 	}
 	else if(obj.deploymentType == "OpenNebula"){
 	    
 	    if(obj.worker.arch.length > 0){
-            cmd += "cpu.arch = '" + obj.worker.arch + "' and\n ";
+            cmd += "        cpu.arch = '" + obj.worker.arch + "'\n ";
 	    }
 
 	    if(obj.worker.flavour.length > 0){
-            cmd += "disk.0.os.flavour = '" + obj.worker.flavour + "' and\n ";
+            cmd += "        disk.0.os.flavour = '" + obj.worker.flavour + "'\n ";
 	    }
 	    if(obj.worker.version.length > 0){
-            cmd += "disk.0.os.version >= '" + obj.worker.version + "' and\n ";
+            cmd += "        disk.0.os.version >= '" + obj.worker.version + "'\n ";
 	    }
 	    if(obj.worker.image.length > 0){
-            cmd += "disk.0.image.url ='" + obj.worker.image + "' and\n ";
+            cmd += "        disk.0.image.url ='" + obj.worker.image + "'\n ";
 	    }
 	    
         if(obj.worker.user.length > 0){
-            cmd += "disk.0.os.credentials.username = '" + obj.worker.user + "' and\n ";
+            cmd += "        disk.0.os.credentials.username = '" + obj.worker.user + "'\n ";
         }
         
 	    if(obj.worker.credentials.length > 0){
-            cmd += "disk.0.os.credentials.password = '" + obj.worker.credentials + "' and\n ";
+            cmd += "        disk.0.os.credentials.password = '" + obj.worker.credentials + "'\n ";
 	    }
 	    cmd += "\n"
-
-        cmd += "cpu.count >= " + obj.worker.CPUs + " and\n ";
-        cmd += "memory.size >=" + obj.worker.memory + "m \n ";
-        
+		cmd += "      capabilities:\n ";
+		cmd += "      host:\n ";
+        cmd += "        num.cpus >= " + obj.worker.CPUs + "\n ";
+        cmd += "        mem_size >=" + obj.worker.memory + "m \n ";
 	}
-	
-	cmd += ")\n ";
-	
+		
 	cmd += "\" > ~/.ec3/templates/" + imageRADL + ".radl\n";
 
 	cmd += "echo -e \"id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + ";\" > $PWD/" + pipeAuth + " & \n"
-	//Create final command where the output is stored in "ec3Out"
-	cmd += "ec3Out=\"`python2 /usr/local/bin/ec3 launch " + obj.infName + " -a $PWD/" + pipeAuth;
+	//Create final command where the output is stored in "imOut"
+	cmd += "imOut=\"`python3 /usr/local/bin/im_client.py create " + obj.infName + " -a $PWD/" + pipeAuth;
 	//Add applications
 	for(let i = 0; i < obj.apps.length; i++){
 	    //Check if is a local or a ec3 application
@@ -1208,12 +1190,12 @@ define([
 	cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
 	//cmd += "rm -r $PWD/templates &> /dev/null \n";
 
-	//Print ec3 output on stderr or stdout
+	//Print im output on stderr or stdout
 	cmd += "if [ $? -ne 0 ]; then \n";
-	cmd += "    >&2 echo -e $ec3Out \n";	
+	cmd += "    >&2 echo -e $imOut \n";	
 	cmd += "    exit 1\n";
 	cmd += "else\n";
-	cmd += "    echo -e $ec3Out \n";	
+	cmd += "    echo -e $imOut \n";	
 	cmd += "fi\n";
 	
 	return cmd;
@@ -1268,7 +1250,7 @@ define([
         console.log("Initialize deployment plugin");
         load_css();
 	
-	//Get local radl directory
+	//Get local yml directory
 	var url = requirejs.toUrl("./templates");
 	templatesURL = location.protocol + '//' + location.host
 	    + url.substring(0, url.lastIndexOf('/'))

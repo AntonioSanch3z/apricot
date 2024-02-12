@@ -955,61 +955,61 @@ define([
 	cmd += "tosca_definitions_version: tosca_simple_yaml_1_0\n"
 
 	if(obj.deploymentType == "OpenNebula"){
-	    cmd += "description: Deploy on OpenNebula\n ";
+	    cmd += "description: Deploy on OpenNebula\n";
 	} else if (obj.deploymentType == "EC2"){
-	    cmd += "description: Deploy on EC2\n ";
+	    cmd += "description: Deploy on EC2\n";
 	}
 
-	cmd += "topology_template:\n ";
-	cmd += "  node_templates:\n ";
+	cmd += "topology_template:\n";
+	cmd += "  node_templates:\n";
 
 	//Frontend
-	cmd += "    front:\n ";
-	cmd += "      type: tosca.nodes.indigo.Compute\n ";
-	cmd += "      capabilities:\n ";
+	cmd += "    front:\n";
+	cmd += "      type: tosca.nodes.indigo.Compute\n";
+	cmd += "      capabilities:\n";
 	
 
 	
 
 	    if(obj.frontend.image.length > 0){
-            cmd += "        host:\n ";
-			cmd += "          properties:\n ";
-			cmd += "            num_cpus: " + obj.frontend.CPUs + "\n ";
-			cmd += "            mem_size: " + obj.frontend.memory + " MB \n ";
+            cmd += "        host:\n";
+			cmd += "          properties:\n";
+			cmd += "            num_cpus: " + obj.frontend.CPUs + "\n";
+			cmd += "            mem_size: " + obj.frontend.memory + " MB \n";
 	    }
 		
-		cmd += "        os:\n ";
-		cmd += "          properties:\n ";
-		cmd += "            type: linux\n ";
+		cmd += "        os:\n";
+		cmd += "          properties:\n";
+		cmd += "            type: linux\n";
 		if(obj.deploymentType == "EC2"){
-			cmd += "            image: '" + obj.frontend.image + "'\n ";
+			cmd += "            image: '" + obj.frontend.image + "'\n";
 		}
 		else if(obj.deploymentType == "OpenNebula"){
-			cmd += "            image: '" + obj.frontend.image + "'\n ";
+			cmd += "            image: '" + obj.frontend.image + "'\n";
 		}
 	    cmd += "\n"
 	
 
 	//Workers
-	cmd += "    wn:\n ";
-	cmd += "      type: tosca.nodes.indigo.Compute\n ";
-	cmd += "      capabilities:\n ";
+	cmd += "    wn:\n";
+	cmd += "      type: tosca.nodes.indigo.Compute\n";
+	cmd += "      capabilities:\n";
 
 	    if(obj.worker.image.length > 0){
-            cmd += "        host:\n ";
-			cmd += "          properties:\n ";
-			cmd += "            num_cpus: " + obj.worker.CPUs + "\n ";
-			cmd += "            mem_size: " + obj.worker.memory + " MB \n ";
+            cmd += "        host:\n";
+			cmd += "          properties:\n";
+			cmd += "            num_cpus: " + obj.worker.CPUs + "\n";
+			cmd += "            mem_size: " + obj.worker.memory + " MB\n";
 	    }
 
-		cmd += "        os:\n ";
-		cmd += "          properties:\n ";
-		cmd += "            type: linux\n ";
+		cmd += "        os:\n";
+		cmd += "          properties:\n";
+		cmd += "            type: linux\n";
 		if(obj.deploymentType == "EC2"){
-			cmd += "            image: '" + obj.worker.image + "'\n ";
+			cmd += "            image: '" + obj.worker.image + "'\n";
 		}
 		else if(obj.deploymentType == "OpenNebula"){
-			cmd += "            image: '" + obj.worker.image + "'\n ";
+			cmd += "            image: '" + obj.worker.image + "'\n";
 		}
 
 	    cmd += "\n"
@@ -1019,7 +1019,7 @@ define([
 	cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
 			"id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + ";\" > $PWD/" + pipeAuth + " & \n"
 	//Create final command where the output is stored in "imOut"
-	cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " create " + "~/.imclient/templates/" + imageRADL + ".yml" + " `\" \n";
+	cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " create " + "~/.imclient/templates/" + imageRADL + ".yml -r https://im.egi.eu/im" + " `\" \n";
 	
 	//Add applications
 	// for(let i = 0; i < obj.apps.length; i++){

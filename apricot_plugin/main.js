@@ -257,17 +257,17 @@ define([
 
 	//Create listing script
 	var cmd = "%%bash \n";
-	cmd += "ec3Out=\"`python3 /usr/local/bin/ec3 list`\"\n";
-	//Print ec3 output on stderr or stdout
+	cmd += "imOut=\"`python3 /usr/local/bin/im_client.py list`\"\n";
+	//Print IM output on stderr or stdout
 	cmd += "if [ $? -ne 0 ]; then \n";
-	cmd += "    >&2 echo -e $ec3Out \n";	
+	cmd += "    >&2 echo -e $imOut \n";	
 	cmd += "    exit 1\n";
 	cmd += "else\n";
-	cmd += "    echo -e $ec3Out \n";	
+	cmd += "    echo -e $imOut \n";	
 	cmd += "fi\n";
 	
 	//console.log(cmd);
-	//Deploy using ec3
+	//Deploy using IM
 	var Kernel = Jupyter.notebook.kernel;
 	Kernel.execute(cmd, callbacks);
     }
@@ -613,17 +613,17 @@ define([
         //Create form for input
         var form = $("<form>")
 	
-        //Create image architecture input field
-        form.append("Architecture:<br>");
-        form.append($('<input id="imageArchIn" type="text" value="' + deployInfo.frontend.arch + '" name="imageArch"><br>'));
+        // //Create image architecture input field
+        // form.append("Architecture:<br>");
+        // form.append($('<input id="imageArchIn" type="text" value="' + deployInfo.frontend.arch + '" name="imageArch"><br>'));
 	
-        //Create image flavour input field
-        form.append("Image flavour:<br>");
-        form.append($('<input id="imageFlavourIn" type="text" value="' + deployInfo.frontend.flavour + '" name="imageFlavour"><br>'));
+        // //Create image flavour input field
+        // form.append("Image flavour:<br>");
+        // form.append($('<input id="imageFlavourIn" type="text" value="' + deployInfo.frontend.flavour + '" name="imageFlavour"><br>'));
 
-        //Create image version input field
-        form.append("Version:<br>");
-        form.append($('<input id="imageVersionIn" type="text" value="' + deployInfo.frontend.version + '" name="imageVersion"><br>'));
+        // //Create image version input field
+        // form.append("Version:<br>");
+        // form.append($('<input id="imageVersionIn" type="text" value="' + deployInfo.frontend.version + '" name="imageVersion"><br>'));
 
         //Create CPU input field
         form.append("Minimum CPUs:<br>");
@@ -643,37 +643,44 @@ define([
 	}
         form.append($('<input id="imageUrlIn" type="text" value="' + imageURL + '" name="imageUrl"><br>'));
 
-        //Create image username input field
-        form.append("Image username:<br>");
-        form.append($('<input id="imageUserIn" type="text" value="' + deployInfo.frontend.user + '" name="imageUser"><br>'));
+        // //Create image username input field
+        // form.append("Image username:<br>");
+        // form.append($('<input id="imageUserIn" type="text" value="' + deployInfo.frontend.user + '" name="imageUser"><br>'));
 
-        //Create image password input field
-        form.append("Image user password:<br>");
-        form.append($('<input id="imageUserPassIn" type="password" value="' + deployInfo.frontend.credentials + '" name="imageUserPass"><br>'));
+        // //Create image password input field
+        // form.append("Image user password:<br>");
+        // form.append($('<input id="imageUserPassIn" type="password" value="' + deployInfo.frontend.credentials + '" name="imageUserPass"><br>'));
 	
 	deployDialog.append(form);
-	
+	console.log("CPUsIn", $("#CPUsIn").val())
+	console.log("imageMemIn", $("#imageMemIn").val())
+	console.log($("imageUrlIn", "#imageUrlIn").val())
+
 	deployDialog.dialog("option", "buttons",{
             "Back": state_deploy_credentials,
 	    "Next": function(){
-		deployInfo.frontend.arch = $("#imageArchIn").val();
-		deployInfo.frontend.version = $("#imageVersionIn").val();
+		// deployInfo.frontend.arch = $("#imageArchIn").val();
+		// deployInfo.frontend.version = $("#imageVersionIn").val();
 		deployInfo.frontend.CPUs = $("#CPUsIn").val();
 		deployInfo.frontend.memory = $("#imageMemIn").val();
-		deployInfo.frontend.flavour = $("#imageFlavourIn").val();
+		// deployInfo.frontend.flavour = $("#imageFlavourIn").val();
 		deployInfo.frontend.image = $("#imageUrlIn").val();
+		console.log(deployInfo.frontend.CPUs)
+		console.log(deployInfo.frontend.memory)
+		console.log(deployInfo.frontend.image)
 
-		if($("#imageUserIn").val().length == 0){
-		    deployInfo.frontend.user = "";
-		}else{
-		    deployInfo.frontend.user = $("#imageUserIn").val();
-		}
+
+		// if($("#imageUserIn").val().length == 0){
+		//     deployInfo.frontend.user = "";
+		// }else{
+		//     deployInfo.frontend.user = $("#imageUserIn").val();
+		// }
 		
-		if($("#imageUserPassIn").val().length == 0){
-		    deployInfo.frontend.credentials = ""
-		}else{
-		    deployInfo.frontend.credentials = $("#imageUserPassIn").val();
-		}
+		// if($("#imageUserPassIn").val().length == 0){
+		//     deployInfo.frontend.credentials = ""
+		// }else{
+		//     deployInfo.frontend.credentials = $("#imageUserPassIn").val();
+		// }
 		
 		
 		state_deploy_ONE_workerSpec();
@@ -701,17 +708,17 @@ define([
         //Create form for input
         var form = $("<form>")
 	
-        //Create image architecture input field
-        form.append("Architecture:<br>");
-        form.append($('<input id="imageArchIn" type="text" value="' + deployInfo.frontend.arch + '" name="imageArch"><br>'));
+        // //Create image architecture input field
+        // form.append("Architecture:<br>");
+        // form.append($('<input id="imageArchIn" type="text" value="' + deployInfo.frontend.arch + '" name="imageArch"><br>'));
 	
-        //Create image flavour input field
-        form.append("Image flavour:<br>");
-        form.append($('<input id="imageFlavourIn" type="text" value="' + deployInfo.frontend.flavour + '" name="imageFlavour"><br>'));
+        // //Create image flavour input field
+        // form.append("Image flavour:<br>");
+        // form.append($('<input id="imageFlavourIn" type="text" value="' + deployInfo.frontend.flavour + '" name="imageFlavour"><br>'));
 
-        //Create image version input field
-        form.append("Version:<br>");
-        form.append($('<input id="imageVersionIn" type="text" value="' + deployInfo.frontend.version + '" name="imageVersion"><br>'));
+        // //Create image version input field
+        // form.append("Version:<br>");
+        // form.append($('<input id="imageVersionIn" type="text" value="' + deployInfo.frontend.version + '" name="imageVersion"><br>'));
 
         //Create CPU input field
         form.append("Minimum CPUs:<br>");
@@ -731,24 +738,24 @@ define([
 	}
         form.append($('<input id="imageUrlIn" type="text" value="' + imageURL + '" name="imageUrl"><br>'));
 
-        //Create image username input field
-        form.append("Image username:<br>");
-        form.append($('<input id="imageUserIn" type="text" value="' + deployInfo.frontend.user + '" name="imageUser"><br>'));
+        // //Create image username input field
+        // form.append("Image username:<br>");
+        // form.append($('<input id="imageUserIn" type="text" value="' + deployInfo.frontend.user + '" name="imageUser"><br>'));
 
-        //Create image password input field
-        form.append("Image user password:<br>");
-        form.append($('<input id="imageUserPassIn" type="password" value="' + deployInfo.frontend.credentials + '" name="imageUserPass"><br>'));
+        // //Create image password input field
+        // form.append("Image user password:<br>");
+        // form.append($('<input id="imageUserPassIn" type="password" value="' + deployInfo.frontend.credentials + '" name="imageUserPass"><br>'));
 	
 	deployDialog.append(form);
 	
 	deployDialog.dialog("option", "buttons",{
             "Back": state_deploy_credentials,
 	    "Next": function(){
-		deployInfo.frontend.arch = $("#imageArchIn").val();
-		deployInfo.frontend.version = $("#imageVersionIn").val();
+		//deployInfo.frontend.arch = $("#imageArchIn").val();
+		//deployInfo.frontend.version = $("#imageVersionIn").val();
 		deployInfo.frontend.CPUs = $("#CPUsIn").val();
 		deployInfo.frontend.memory = $("#imageMemIn").val();
-		deployInfo.frontend.flavour = $("#imageFlavourIn").val();
+		//deployInfo.frontend.flavour = $("#imageFlavourIn").val();
 		deployInfo.frontend.image = $("#imageUrlIn").val();
 
 		if($("#imageUserIn").val().length == 0){
@@ -801,9 +808,9 @@ define([
             "Back": state_deploy_ONE_frontendSpec,
 	    "Next": function(){
 
-		deployInfo.worker.arch = deployInfo.frontend.arch;
-		deployInfo.worker.version = deployInfo.frontend.version;
-		deployInfo.worker.flavour = deployInfo.frontend.flavour;
+		// deployInfo.worker.arch = deployInfo.frontend.arch;
+		// deployInfo.worker.version = deployInfo.frontend.version;
+		// deployInfo.worker.flavour = deployInfo.frontend.flavour;
 		deployInfo.worker.image = deployInfo.frontend.image;
 		deployInfo.worker.user = deployInfo.frontend.user;
 		deployInfo.worker.credentials = deployInfo.frontend.credentials;		
@@ -831,12 +838,12 @@ define([
         var form = $("<form>");
 
 	//Create queue selector
-	var selector = $('<select id="queueSelector" name="queueSelector">');
-	for(let i = 0; i < queues.length; i++){
-	    let option = $('<option value="' + queues[i] + '">');
-	    option.text(queues[i]);
-	    selector.append(option);
-	}
+	// var selector = $('<select id="queueSelector" name="queueSelector">');
+	// for(let i = 0; i < queues.length; i++){
+	//     let option = $('<option value="' + queues[i] + '">');
+	//     option.text(queues[i]);
+	//     selector.append(option);
+	// }
 
 	//Create cluster name input field
     form.append("Cluster name:<br>");
@@ -856,45 +863,45 @@ define([
         form.append($('<input id="destroyTimeIn" type="number" value="' + deployInfo.destroyInterval + '" min="0" name="destroyTime"><br>'));
     }
 	
-	if(deployInfo.topology == "Advanced"){
+	// if(deployInfo.topology == "Advanced"){
 		
-	    //Queue selector
-	    form.append("Queue system:<br>");	
-	    form.append(selector);
+	//     //Queue selector
+	//     form.append("Queue system:<br>");	
+	//     form.append(selector);
 		
-	    //Create check boxes with optional app
-	    var ul = $('<ul class="checkbox-grid">');
-	    for(let i = 0; i < applications.length; i++){
+	//     //Create check boxes with optional app
+	//     var ul = $('<ul class="checkbox-grid">');
+	//     for(let i = 0; i < applications.length; i++){
 
-            if(applications[i] == "sshkey"){continue;} //sshkey will be used with nfs
-            //Create line
-            let line = $('<li style="white-space:nowrap">'); //Force checkbox and label to stay at same line
-            //Create checkbox
-            let checkbox = $('<input type="checkbox" id="' + applications[i] + '-appCheckID" name="' + applications[i] + '" value="' + applications[i] + '">');
-            //Create label
-            let label = $('<label for=" ' + applications[i] + '">');
-            label.text(applications[i])	    
+    //         if(applications[i] == "sshkey"){continue;} //sshkey will be used with nfs
+    //         //Create line
+    //         let line = $('<li style="white-space:nowrap">'); //Force checkbox and label to stay at same line
+    //         //Create checkbox
+    //         let checkbox = $('<input type="checkbox" id="' + applications[i] + '-appCheckID" name="' + applications[i] + '" value="' + applications[i] + '">');
+    //         //Create label
+    //         let label = $('<label for=" ' + applications[i] + '">');
+    //         label.text(applications[i])	    
     
-            //Append all to line
-            line.append(checkbox);
-            line.append(label);
+    //         //Append all to line
+    //         line.append(checkbox);
+    //         line.append(label);
 
-            //Append line to grid
-            ul.append(line);
-	    }
-	}
+    //         //Append line to grid
+    //         ul.append(line);
+	//     }
+	// }
 	
 	//Append all to dialog
 	deployDialog.append(form);
 
-	if(deployInfo.topology == "Advanced"){
-            //Informative text
-	    deployDialog.append($("<br>"));
-            deployDialog.append($("<p>Select cluster applications</p>"));
-	    deployDialog.append($("<br>"));
+	// if(deployInfo.topology == "Advanced"){
+    //         //Informative text
+	//     deployDialog.append($("<br>"));
+    //         deployDialog.append($("<p>Select cluster applications</p>"));
+	//     deployDialog.append($("<br>"));
 	    
-	    deployDialog.append(ul);
-	}
+	//     deployDialog.append(ul);
+	// }
 	
 	deployDialog.dialog("option", "buttons",{
             "Back": function(){ back_function();},
@@ -924,21 +931,21 @@ define([
 		}
 		    
 
-		//Set applications
-		for(let i = 0; i < applications.length; i++){
-		    if($("#" + applications[i] + "-appCheckID").length > 0){
-			if($("#" + applications[i] + "-appCheckID").is(":checked")){
-			    deployInfo.apps.push(applications[i]);
-                if(applications[i] == "nfs"){
-                    //add "sshkey" too
-                    deployInfo.apps.push("sshkey");
-                }
-			}
-		    }
-		}
+		// //Set applications
+		// for(let i = 0; i < applications.length; i++){
+		//     if($("#" + applications[i] + "-appCheckID").length > 0){
+		// 	if($("#" + applications[i] + "-appCheckID").is(":checked")){
+		// 	    deployInfo.apps.push(applications[i]);
+        //         if(applications[i] == "nfs"){
+        //             //add "sshkey" too
+        //             deployInfo.apps.push("sshkey");
+        //         }
+		// 	}
+		//     }
+		// }
 
-		//Print selected applications
-		console.log("Cluster applications: " + deployInfo.apps);
+		// //Print selected applications
+		// console.log("Cluster applications: " + deployInfo.apps);
 
 		//Create kernel callback
 		var callbacks = {
@@ -1022,7 +1029,7 @@ define([
 	}
         
     //Get also queue radl
-    var completeName = localTemplatePrefix + obj.queue + ".yml";
+    var completeName = localTemplatePrefix + ".yml"; //+ obj.queue + ".yml";
 	cmd += "curl -s " + templateURL + "/"
 	    + completeName
 	    +  " > $PWD/templates/" + completeName + " \n";                
@@ -1042,8 +1049,8 @@ define([
 
 	if(obj.deploymentType == "OpenNebula"){
 	    cmd += "description: Deploy on OpenNebula\n ";
-	} else if ( obj.deploymentType == "EC2"){
-	    cmd += "description: Deploy on EC2 (\n ";
+	} else if (obj.deploymentType == "EC2"){
+	    cmd += "description: Deploy on EC2 \n ";
 	}
 	// cmd += "kind = 'images' and\n ";
 
@@ -1071,7 +1078,7 @@ define([
 	cmd += "    front:\n ";
 	cmd += "      type: tosca.nodes.Compute\n ";
 	cmd += "      properties:\n ";
-	cmd += "        disk.0.os.name = 'linux'\n ";
+	// cmd += "        disk.0.os.name = 'linux'\n ";
 	
 	if(obj.deploymentType == "EC2"){        
 	    //Image url
@@ -1087,37 +1094,37 @@ define([
 	}
 	else if(obj.deploymentType == "OpenNebula"){
 	    
-	    if(obj.frontend.arch.length > 0){
-		cmd += "        cpu.arch = '" + obj.frontend.arch + "'\n ";
-	    }
-	    if(obj.frontend.flavour.length > 0){
-            cmd += "        disk.0.os.flavour = '" + obj.frontend.flavour + "'\n ";
-	    }
-	    if(obj.frontend.version.length > 0){
-            cmd += "        disk.0.os.version >= '" + obj.frontend.version + "'\n ";
-	    }
+	    // if(obj.frontend.arch.length > 0){
+		// cmd += "        cpu.arch = '" + obj.frontend.arch + "'\n ";
+	    // }
+	    // if(obj.frontend.flavour.length > 0){
+        //     cmd += "        disk.0.os.flavour = '" + obj.frontend.flavour + "'\n ";
+	    // }
+	    // if(obj.frontend.version.length > 0){
+        //     cmd += "        disk.0.os.version >= '" + obj.frontend.version + "'\n ";
+	    // }
 	    if(obj.frontend.image.length > 0){
-            cmd += "        disk.0.image.url ='" + obj.frontend.image + "'\n ";
+            cmd += "        disk.0.image.url = '" + obj.frontend.image + "'\n ";
 	    }
 	    
 	    //Username
-	    if(obj.frontend.user.length > 0){
-            cmd += "        disk.0.os.credentials.username = '" + obj.frontend.user + "'\n ";
-        }
-        if(obj.frontend.credentials.length > 0){
-            cmd += "        disk.0.os.credentials.password = '" + obj.frontend.credentials + "'\n ";
-	    }
+	    // if(obj.frontend.user.length > 0){
+        //     cmd += "        disk.0.os.credentials.username = '" + obj.frontend.user + "'\n ";
+        // }
+        // if(obj.frontend.credentials.length > 0){
+        //     cmd += "        disk.0.os.credentials.password = '" + obj.frontend.credentials + "'\n ";
+	    // }
         
-	    cmd += "        cpu.count >= " + obj.frontend.CPUs + "\n ";
-	    cmd += "        memory.size >= " + obj.frontend.memory + "m \n ";
+	    cmd += "        cpu_count >= " + obj.frontend.CPUs + "\n ";
+	    cmd += "        memory_size >= " + obj.frontend.memory + " MB \n ";
 	    cmd += "\n"
 	}
 
 	//Workers
-	cmd += "    worker\n ";
-	cmd += "      type = 'tosca.nodes.Compute'\n ";
+	cmd += "    worker:\n ";
+	cmd += "      type = tosca.nodes.Compute\n ";
 	cmd += "      properties:\n ";
-	cmd += "        disk.0.os.name = 'linux'\n ";
+	// cmd += "        disk.0.os.name = 'linux'\n ";
 	//cmd += "net_interface.0.connection = 'net'\n ";
 
 	if(obj.deploymentType == "EC2"){
@@ -1128,9 +1135,9 @@ define([
 	    }
         
 	    //Username
-	    if(obj.worker.user.length > 0){
-            cmd += "        disk.0.os.credentials.username = '" + obj.worker.user + "'\n ";
-	    }
+	    // if(obj.worker.user.length > 0){
+        //     cmd += "        disk.0.os.credentials.username = '" + obj.worker.user + "'\n ";
+	    // }
 
         //Instance type
 	    cmd += "        type = '" + obj.worker.instance + "'\n ";
@@ -1138,52 +1145,55 @@ define([
 	}
 	else if(obj.deploymentType == "OpenNebula"){
 	    
-	    if(obj.worker.arch.length > 0){
-            cmd += "        cpu.arch = '" + obj.worker.arch + "'\n ";
-	    }
+	    // if(obj.worker.arch.length > 0){
+        //     cmd += "        cpu.arch = '" + obj.worker.arch + "'\n ";
+	    // }
 
-	    if(obj.worker.flavour.length > 0){
-            cmd += "        disk.0.os.flavour = '" + obj.worker.flavour + "'\n ";
-	    }
-	    if(obj.worker.version.length > 0){
-            cmd += "        disk.0.os.version >= '" + obj.worker.version + "'\n ";
-	    }
+	    // if(obj.worker.flavour.length > 0){
+        //     cmd += "        disk.0.os.flavour = '" + obj.worker.flavour + "'\n ";
+	    // }
+	    // if(obj.worker.version.length > 0){
+        //     cmd += "        disk.0.os.version >= '" + obj.worker.version + "'\n ";
+	    // }
 	    if(obj.worker.image.length > 0){
             cmd += "        disk.0.image.url ='" + obj.worker.image + "'\n ";
 	    }
 	    
-        if(obj.worker.user.length > 0){
-            cmd += "        disk.0.os.credentials.username = '" + obj.worker.user + "'\n ";
-        }
+        // if(obj.worker.user.length > 0){
+        //     cmd += "        disk.0.os.credentials.username = '" + obj.worker.user + "'\n ";
+        // }
         
-	    if(obj.worker.credentials.length > 0){
-            cmd += "        disk.0.os.credentials.password = '" + obj.worker.credentials + "'\n ";
-	    }
+	    // if(obj.worker.credentials.length > 0){
+        //     cmd += "        disk.0.os.credentials.password = '" + obj.worker.credentials + "'\n ";
+	    // }
 	    cmd += "\n"
 		cmd += "      capabilities:\n ";
 		cmd += "      host:\n ";
-        cmd += "        num.cpus >= " + obj.worker.CPUs + "\n ";
-        cmd += "        mem_size >=" + obj.worker.memory + "m \n ";
+        cmd += "        num_cpus = " + obj.worker.CPUs + "\n ";
+        cmd += "        mem_size =" + obj.worker.memory + " MB \n ";
 	}
 		
-	cmd += "\" > ~/.ec3/templates/" + imageRADL + ".radl\n";
+	cmd += "\" > ~/.imclient/templates/" + imageRADL + ".yml\n";
 
-	cmd += "echo -e \"id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + ";\" > $PWD/" + pipeAuth + " & \n"
-	//Create final command where the output is stored in "imOut"
-	cmd += "imOut=\"`python3 /usr/local/bin/im_client.py create " + obj.infName + " -a $PWD/" + pipeAuth;
+	cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
+			"id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + ";\" > $PWD/" + pipeAuth + " & \n"
+			//Create final command where the output is stored in "imOut"
+	cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " create " + "~/.imclient/templates/" + imageRADL + ".yml" + " `\" \n";
+	
 	//Add applications
-	for(let i = 0; i < obj.apps.length; i++){
-	    //Check if is a local or a ec3 application
-	    if(localApplications.indexOf(obj.apps[i]) > -1){		
-		cmd += " __local_" + obj.apps[i];
-	    } else{
-		cmd += " " + obj.apps[i];
-	    }
-	}
+	// for(let i = 0; i < obj.apps.length; i++){
+	//     //Check if is a local or a ec3 application
+	//     if(localApplications.indexOf(obj.apps[i]) > -1){		
+	// 	cmd += " __local_" + obj.apps[i];
+	//     } else{
+	// 	cmd += " " + obj.apps[i];
+	//     }
+	// }
 	//Add queue system
-	cmd += " __local_" + obj.queue;
+	// cmd += " __local_" + obj.queue;
 	    
-	cmd += " " + imageRADL + " --yes`\" \n";
+	// cmd += " " + imageRADL + " `\" \n";
+
 	//cmd += " --dry-run";
 
 	//Remove pipe
@@ -1198,6 +1208,7 @@ define([
 	cmd += "    echo -e $imOut \n";	
 	cmd += "fi\n";
 	
+	console.log("cmd2", cmd);
 	return cmd;
     }
 

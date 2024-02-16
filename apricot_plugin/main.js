@@ -23,7 +23,7 @@ define([
     
     var queues = ["slurm","OSCAR"];
     var commonapps = ["openports"];
-    var applications = ["compilers","openmpi","nfs","sshkey","onedata","git"];
+    var applications = ["galaxy","minIO","docker","sshkey", "nfs", "ansible","node-red"];
     var localApplications = ["compilers","openmpi","nfs","sshkey","onedata","openports","git"];
 
     var templatesURL = "";
@@ -41,13 +41,18 @@ define([
     var topology = ""
 	if(typeof deployInfo.topology != undefined){
 	    topology = deployInfo.topology;
-    }    
+    }
+    var recipe = ""
+	if(typeof deployInfo.recipe != undefined){
+	    recipe = deployInfo.recipe;
+    } 
     var queue = ""
 	if(typeof deployInfo.queue != undefined){
 	    queue = deployInfo.queue;
     }            
         deployInfo = {
 	    "topology": topology,
+        "recipe": recipe,
          "user": "",
          "credential": "",
          "deploymentType": "OpenNebula",
@@ -282,70 +287,11 @@ define([
         $("#dialog-deploy").dialog()
         
         //Set initial state
-        state_Deploy_Mechanism();
+        //state_Deploy_Mechanism();
+        state_deploy_provider();
         
         //Close dialog
         $("#dialog-deploy").dialog("close");
-    }
-    
-    // Deploy button states
-    var state_Deploy_Mechanism = function(){
-        
-        //Get dialog
-        var deployDialog = $("#dialog-deploy");
-        
-        //Enable shortcuts
-        Jupyter.keyboard_manager.enable();        
-
-        //Clear dialog
-        deployDialog.empty();
-        
-        deployDialog.append($("<p>Select deployment topology</p>"));
-        
-        deployDialog.dialog("option", "buttons",{
-            "Advanced": function() {
-		deployInfo.topology = "Advanced";
-		deployInfo.queue = "";
-		//Clear deploy apps selection
-		deployInfo.apps = [];
-		for(let i = 0; i < commonapps.length; i++){
-			deployInfo.apps.push(commonapps[i])
-		}
-		state_deploy_provider();
-	    },
-            "MPI-Cluster": function() {
-		deployInfo.topology = "MPI-Cluster";
-		//Clear deploy apps selection
-		deployInfo.queue = "slurm";
-		deployInfo.apps = ["nfs","sshkey","compilers","openmpi","onedata","git"];
-		for(let i = 0; i < commonapps.length; i++){
-			deployInfo.apps.push(commonapps[i])
-		}		    
-		state_deploy_provider();
-	    },
-            "Batch-Cluster": function() {
-		deployInfo.topology = "Batch-Cluster";
-		//Clear deploy apps selection
-		deployInfo.queue = "slurm";
-		deployInfo.apps = ["nfs","sshkey","compilers","onedata","git"];
-		for(let i = 0; i < commonapps.length; i++){
-			deployInfo.apps.push(commonapps[i])
-		}		    
-		state_deploy_provider();
-	    },
-            "OSCAR": function() {
-		deployInfo.topology = "OSCAR";
-		deployInfo.queue = "OSCAR";
-		//Clear deploy apps selection
-		deployInfo.apps = [];
-		for(let i = 0; i < commonapps.length; i++){
-			deployInfo.apps.push(commonapps[i])
-		}		
-		//state_deploy_provider();
-		console.log("on construction...");
-	    }
-    
-        });
     }
     
     // select provider function
@@ -365,13 +311,7 @@ define([
         deployDialog.append($("<p>Select infrastructure provider</p>"));
 	
         deployDialog.dialog("option", "buttons",
-	[
-	   {
- 	    text: "Back",
-	    icon: "ui-icon-circle-arrow-w",
-	    showText: false,
-        click: state_Deploy_Mechanism
-	   },   
+	[ 
        {
         text: "ONE",
         click: function() {
@@ -384,7 +324,8 @@ define([
                 deployInfo.id = "one";
                 deployInfo.deploymentType = "OpenNebula";
 
-                state_deploy_credentials();
+                //state_deploy_credentials();
+                state_recipe_type();
             }
        },
        {
@@ -399,7 +340,8 @@ define([
                 deployInfo.id = "ec2";
                 deployInfo.deploymentType = "EC2";
 
-                state_deploy_credentials();
+                //state_deploy_credentials();
+                state_recipe_type();
             },
        },
        {
@@ -414,10 +356,132 @@ define([
                 deployInfo.id = "ost";
                 deployInfo.deploymentType = "OpenStack";
 
-                state_deploy_credentials();
+                //state_deploy_credentials();
+                state_recipe_type();
             }
        }
         ]);
+    }
+
+    // Deploy recipe type
+    var state_recipe_type = function(){
+        
+        //Get dialog
+        var deployDialog = $("#dialog-deploy");
+        
+        //Enable shortcuts
+        Jupyter.keyboard_manager.enable();        
+
+        //Clear dialog
+        deployDialog.empty();
+        
+        deployDialog.append($("<p>Select recipe type</p>"));
+
+        deployDialog.dialog("option", "buttons", {
+            "Back": {
+                text: "Back",
+                icon: "ui-icon-circle-arrow-w",
+                showText: false,
+                click: state_deploy_provider
+            },
+            "Simple-node-disk": function() {
+                deployInfo.recipe = "Simple-node-disk";
+                deployInfo.queue = "";
+                //Clear deploy apps selection
+                deployInfo.apps = [];
+                for(let i = 0; i < commonapps.length; i++){
+                    deployInfo.apps.push(commonapps[i])
+                }
+                state_recipe_features();
+            },
+            "Slurm": function() {
+                deployInfo.recipe = "Slurm";
+                deployInfo.apps = ["nfs","sshkey","compilers","openmpi","onedata","git"];
+                for(let i = 0; i < commonapps.length; i++){
+                    deployInfo.apps.push(commonapps[i])
+                }
+                state_recipe_features();
+            },
+            "Kubernetes": function() {
+                deployInfo.recipe = "Kubernetes";
+                deployInfo.apps = ["nfs","sshkey","compilers","onedata","git"];
+                for(let i = 0; i < commonapps.length; i++){
+                    deployInfo.apps.push(commonapps[i])
+                }
+                state_recipe_features();
+            }
+        });
+        
+    }
+
+    var state_recipe_features = function(){
+        
+        //Get dialog
+        var deployDialog = $("#dialog-deploy");
+        
+        //Enable shortcuts
+        Jupyter.keyboard_manager.enable();        
+
+        //Clear dialog
+        deployDialog.empty();
+        
+        deployDialog.append($("<p>Select recipe optional features</p>"));
+
+        //Create check boxes with optional app
+        var ul = $('<ul class="checkbox-grid">');
+        for(let i = 0; i < applications.length; i++){
+    
+            if(applications[i] == "sshkey"){continue;} //sshkey will be used with nfs
+            //Create line
+            let line = $('<li style="white-space:nowrap">'); //Force checkbox and label to stay at same line
+            //Create checkbox
+            let checkbox = $('<input type="checkbox" id="' + applications[i] + '-appCheckID" name="' + applications[i] + '" value="' + applications[i] + '">');
+            //Create label
+            let label = $('<label for=" ' + applications[i] + '">');
+            label.text(applications[i])	    
+        
+            //Append all to line
+            line.append(checkbox);
+            line.append(label);
+    
+            //Append line to grid
+            ul.append(line);
+        }
+        
+        //Append all to dialog
+        deployDialog.append(ul);
+
+        //Set applications
+		for(let i = 0; i < applications.length; i++){
+		    if($("#" + applications[i] + "-appCheckID").length > 0){
+			if($("#" + applications[i] + "-appCheckID").is(":checked")){
+			    deployInfo.apps.push(applications[i]);
+                if(applications[i] == "nfs"){
+                    //add "sshkey" too
+                    deployInfo.apps.push("sshkey");
+                }
+			}
+		    }
+		}
+
+        deployDialog.dialog("option", "buttons",{
+            "Back": state_recipe_type,
+            "Next": function(){
+    
+            deployInfo.worker.image = deployInfo.frontend.image;
+            deployInfo.worker.user = deployInfo.frontend.user;
+            deployInfo.worker.credentials = deployInfo.frontend.credentials;		
+            
+            deployInfo.worker.memory = $("#imageMemIn").val();
+            deployInfo.worker.CPUs = $("#CPUsIn").val();
+            
+            //state_deploy_app(state_deploy_ONE_workerSpec);
+            state_deploy_credentials();
+            }
+            });
+
+		// //Print selected applications
+		console.log("Cluster applications: " + deployInfo.apps);
     }
 
     // introduce credentials function
@@ -450,7 +514,7 @@ define([
 	    text3 = "Password:<br>";
 
             //Create host input field
-            form.append("Host:Port:<br>");
+            form.append("Host and port:<br>");
             form.append($('<input id="hostIn" type="text" value="' + deployInfo.host + '" name="host"><br>'));
 	    
 	}
@@ -480,7 +544,7 @@ define([
 	deployDialog.append(form);
 	
 	deployDialog.dialog("option", "buttons",{
-            "Back": state_deploy_provider,
+            "Back": state_recipe_features,
 	    "Next": function(){
 		if(deployInfo.deploymentType == "OpenNebula"){
 		    if(deployInfo.host != $("#hostIn").val()){
@@ -496,7 +560,8 @@ define([
 		    state_deploy_EC2_instances();
 		}
 		else if(deployInfo.deploymentType == "OpenNebula"){
-		    state_deploy_ONE_frontendSpec();
+		    //state_deploy_ONE_workerSpec();
+            state_deploy_app(state_deploy_ONE_workerSpec);
 		}
 		else if(deployInfo.deploymentType == "OpenStack"){
 		    console.log("on construction...");
@@ -544,6 +609,12 @@ define([
 	//Create AMI input field 
         form.append("AMI:<br>");
         form.append($('<input id="AMIIn" type="text" value="' + ami + '" name="AMI"><br>'));
+
+        if(deployInfo.recipe == "Simple-node-disk"){
+		    // Port to be opened on AWS
+            form.append("Port to be opened in AWS:<br>");
+            form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
+		}
 	
         // //Create instance type input field for fronted
         // form.append("Frontend instance type:<br>");
@@ -596,119 +667,119 @@ define([
     }
     
     // state deploy ONE frontendSpec
-    var state_deploy_ONE_frontendSpec = function(){
+    // var state_deploy_ONE_frontendSpec = function(){
         
-        //Get dialog
-        var deployDialog = $("#dialog-deploy");
+    //     //Get dialog
+    //     var deployDialog = $("#dialog-deploy");
         
-        //Clear dialog
-        deployDialog.empty();
+    //     //Clear dialog
+    //     deployDialog.empty();
         
-        //Disable shortcuts
-        Jupyter.keyboard_manager.disable();        
+    //     //Disable shortcuts
+    //     Jupyter.keyboard_manager.disable();        
         
-        //Informative text
-        deployDialog.append($("<p>Introduce frontend specifications</p>"));
+    //     //Informative text
+    //     deployDialog.append($("<p>Introduce frontend specifications</p>"));
         
-        //Create form for input
-        var form = $("<form>")
+    //     //Create form for input
+    //     var form = $("<form>")
 
-        //Create CPU input field
-        form.append("Minimum CPUs:<br>");
-        form.append($('<input id="CPUsIn" type="number" value="' + deployInfo.frontend.CPUs + '" min="1" name="CPUs"><br>'));
+    //     //Create CPU input field
+    //     form.append("Minimum CPUs:<br>");
+    //     form.append($('<input id="CPUsIn" type="number" value="' + deployInfo.frontend.CPUs + '" min="1" name="CPUs"><br>'));
 	
-        //Create memory input field
-        form.append("Minimum memory (MB):<br>");
-        form.append($('<input id="imageMemIn" type="number" value="' + deployInfo.frontend.memory + '" min="1024" name="imageMem"><br>'));
+    //     //Create memory input field
+    //     form.append("Minimum memory (MB):<br>");
+    //     form.append($('<input id="imageMemIn" type="number" value="' + deployInfo.frontend.memory + '" min="1024" name="imageMem"><br>'));
 	
-        //Create image url input field
-        form.append("Image url:<br>");
-	var imageURL = deployInfo.frontend.image;
-	if(imageURL.length == 0){
-	    if(deployInfo.deploymentType = "OpenNebula"){
-		imageURL = "one://" + deployInfo.host + "/";
-	    }
-	}
-        form.append($('<input id="imageUrlIn" type="text" value="' + imageURL + '" name="imageUrl"><br>'));
+    //     //Create image url input field
+    //     form.append("Image url:<br>");
+	// var imageURL = deployInfo.frontend.image;
+	// if(imageURL.length == 0){
+	//     if(deployInfo.deploymentType = "OpenNebula"){
+	// 	imageURL = "one://" + deployInfo.host + "/";
+	//     }
+	// }
+    //     form.append($('<input id="imageUrlIn" type="text" value="' + imageURL + '" name="imageUrl"><br>'));
 
-	deployDialog.append(form);
+	// deployDialog.append(form);
 
-	deployDialog.dialog("option", "buttons",{
-            "Back": state_deploy_credentials,
-	    "Next": function(){
-		deployInfo.frontend.CPUs = $("#CPUsIn").val();
-		deployInfo.frontend.memory = $("#imageMemIn").val();
-		deployInfo.frontend.image = $("#imageUrlIn").val();
+	// deployDialog.dialog("option", "buttons",{
+    //         "Back": state_deploy_credentials,
+	//     "Next": function(){
+	// 	deployInfo.frontend.CPUs = $("#CPUsIn").val();
+	// 	deployInfo.frontend.memory = $("#imageMemIn").val();
+	// 	deployInfo.frontend.image = $("#imageUrlIn").val();
 
-		state_deploy_ONE_workerSpec();
-	    }
-        });
-    }
+	// 	state_deploy_ONE_workerSpec();
+	//     }
+    //     });
+    // }
 
     // state deploy OST frontendSpec
-    var state_deploy_OST_frontendSpec = function(){
+    // var state_deploy_OST_frontendSpec = function(){
 
-	//COMPLETAR!!!!
+	// //COMPLETAR!!!!
         
-        //Get dialog
-        var deployDialog = $("#dialog-deploy");
+    //     //Get dialog
+    //     var deployDialog = $("#dialog-deploy");
         
-        //Clear dialog
-        deployDialog.empty();
+    //     //Clear dialog
+    //     deployDialog.empty();
         
-        //Disable shortcuts
-        Jupyter.keyboard_manager.disable();        
+    //     //Disable shortcuts
+    //     Jupyter.keyboard_manager.disable();        
         
-        //Informative text
-        deployDialog.append($("<p>Introduce frontend specifications</p>"));
+    //     //Informative text
+    //     deployDialog.append($("<p>Introduce frontend specifications</p>"));
         
-        //Create form for input
-        var form = $("<form>")
+    //     //Create form for input
+    //     var form = $("<form>")
 
-        //Create CPU input field
-        form.append("Minimum CPUs:<br>");
-        form.append($('<input id="CPUsIn" type="number" value="' + deployInfo.frontend.CPUs + '" min="1" name="CPUs"><br>'));
+    //     //Create CPU input field
+    //     form.append("Minimum CPUs:<br>");
+    //     form.append($('<input id="CPUsIn" type="number" value="' + deployInfo.frontend.CPUs + '" min="1" name="CPUs"><br>'));
 	
-        //Create memory input field
-        form.append("Minimum memory (MB):<br>");
-        form.append($('<input id="imageMemIn" type="number" value="' + deployInfo.frontend.memory + '" min="1024" name="imageMem"><br>'));
+    //     //Create memory input field
+    //     form.append("Minimum memory (MB):<br>");
+    //     form.append($('<input id="imageMemIn" type="number" value="' + deployInfo.frontend.memory + '" min="1024" name="imageMem"><br>'));
 	
-        //Create image url input field
-        form.append("Image url:<br>");
-	var imageURL = deployInfo.frontend.image;
-	if(imageURL.length == 0){
-	    if(deployInfo.deploymentType = "OpenStack"){
-		imageURL = "one://" + deployInfo.host + "/";
-	    }
-	}
-        form.append($('<input id="imageUrlIn" type="text" value="' + imageURL + '" name="imageUrl"><br>'));
+    //     //Create image url input field
+    //     form.append("Image url:<br>");
+	// var imageURL = deployInfo.frontend.image;
+	// if(imageURL.length == 0){
+	//     if(deployInfo.deploymentType = "OpenStack"){
+	// 	imageURL = "one://" + deployInfo.host + "/";
+	//     }
+	// }
+    //     form.append($('<input id="imageUrlIn" type="text" value="' + imageURL + '" name="imageUrl"><br>'));
 
-	deployDialog.append(form);
+	// deployDialog.append(form);
 	
-	deployDialog.dialog("option", "buttons",{
-            "Back": state_deploy_credentials,
-	    "Next": function(){
-		deployInfo.frontend.CPUs = $("#CPUsIn").val();
-		deployInfo.frontend.memory = $("#imageMemIn").val();
-		deployInfo.frontend.image = $("#imageUrlIn").val();
+	// deployDialog.dialog("option", "buttons",{
+    //         "Back": state_deploy_credentials,
+	//     "Next": function(){
+	// 	deployInfo.frontend.CPUs = $("#CPUsIn").val();
+	// 	deployInfo.frontend.memory = $("#imageMemIn").val();
+	// 	deployInfo.frontend.image = $("#imageUrlIn").val();
 
-		if($("#imageUserIn").val().length == 0){
-		    deployInfo.frontend.user = "";
-		}else{
-		    deployInfo.frontend.user = $("#imageUserIn").val();
-		}
+	// 	if($("#imageUserIn").val().length == 0){
+	// 	    deployInfo.frontend.user = "";
+	// 	}else{
+	// 	    deployInfo.frontend.user = $("#imageUserIn").val();
+	// 	}
 		
-		if($("#imageUserPassIn").val().length == 0){
-		    deployInfo.frontend.credentials = ""
-		}else{
-		    deployInfo.frontend.credentials = $("#imageUserPassIn").val();
-		}
+	// 	if($("#imageUserPassIn").val().length == 0){
+	// 	    deployInfo.frontend.credentials = ""
+	// 	}else{
+	// 	    deployInfo.frontend.credentials = $("#imageUserPassIn").val();
+	// 	}
 		
 		
-		state_deploy_ONE_workerSpec();
-	    }
-        });
-    }
+	// 	state_deploy_ONE_workerSpec();
+	//     }
+    //     });
+    // }
     
     // state deploy-one-worker
     var state_deploy_ONE_workerSpec = function(){
@@ -739,7 +810,7 @@ define([
 	deployDialog.append(form);
 	
 	deployDialog.dialog("option", "buttons",{
-            "Back": state_deploy_ONE_frontendSpec,
+        "Back": state_deploy_credentials,
 	    "Next": function(){
 
 		deployInfo.worker.image = deployInfo.frontend.image;
@@ -780,60 +851,82 @@ define([
     form.append("Cluster name:<br>");
     form.append($('<input id="clusterNameIn" type="text" value="' + deployInfo.infName + '" name="clusterName"><br>'));
 
-    if(deployInfo.topology != "OSCAR"){
+    if(deployInfo.recipe == "Simple-node-disk"){
+
+        //Maximum workers input field
+        form.append("Number of VMs:<br>");
+        form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
+
         //Minimum workers input field
-        form.append("Minimum workers:<br>");
+        form.append("Number of virtual CPUs for the VM(s):<br>");
         form.append($('<input id="clusterNWorkersIn" type="number" value="1" min="1" name="clusterNWorkers"><br>'));
 
 		//Maximum workers input field
-        form.append("Maximum workers:<br>");
+        form.append("Amount of memory for the VM(s):<br>");
         form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
-	    
-        //Create workers destroy time input field
-        form.append("Workers idle time (s) before shutdown:<br>");
-        form.append($('<input id="destroyTimeIn" type="number" value="' + deployInfo.destroyInterval + '" min="0" name="destroyTime"><br>'));
+
+        //Maximum workers input field
+        form.append("Size of the root disk of the VM(s):<br>");
+        form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
+
+        //Maximum workers input field
+        form.append("Number of CPUs:<br>");
+        form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
+
+        //Maximum workers input field
+        form.append("Number of GPUs:<br>");
+        form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
     }
-	
-	// if(deployInfo.topology == "Advanced"){
-		
-	//     //Queue selector
-	//     form.append("Queue system:<br>");	
-	//     form.append(selector);
-		
-	//     //Create check boxes with optional app
-	//     var ul = $('<ul class="checkbox-grid">');
-	//     for(let i = 0; i < applications.length; i++){
 
-    //         if(applications[i] == "sshkey"){continue;} //sshkey will be used with nfs
-    //         //Create line
-    //         let line = $('<li style="white-space:nowrap">'); //Force checkbox and label to stay at same line
-    //         //Create checkbox
-    //         let checkbox = $('<input type="checkbox" id="' + applications[i] + '-appCheckID" name="' + applications[i] + '" value="' + applications[i] + '">');
-    //         //Create label
-    //         let label = $('<label for=" ' + applications[i] + '">');
-    //         label.text(applications[i])	    
-    
-    //         //Append all to line
-    //         line.append(checkbox);
-    //         line.append(label);
+    if(deployInfo.recipe == "Slurm"){
 
-    //         //Append line to grid
-    //         ul.append(line);
-	//     }
-	// }
+        //Maximum workers input field
+        form.append("Number of VMs:<br>");
+        form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
+
+        //Minimum workers input field
+        form.append("Number of virtual CPUs for the VM(s):<br>");
+        form.append($('<input id="clusterNWorkersIn" type="number" value="1" min="1" name="clusterNWorkers"><br>'));
+
+		//Maximum workers input field
+        form.append("Amount of memory for the VM:<br>");
+        form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
+
+        //Maximum workers input field
+        form.append("Size of the root disk of the Wns:<br>");
+        form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
+
+        //Maximum workers input field
+        form.append("Number of GPUs:<br>");
+        form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
+    }
+
+    if(deployInfo.recipe == "Kubernetes"){
+
+        //Maximum workers input field
+        form.append("Number of VMs:<br>");
+        form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
+
+        //Minimum workers input field
+        form.append("Number of virtual CPUs for the VM(s):<br>");
+        form.append($('<input id="clusterNWorkersIn" type="number" value="1" min="1" name="clusterNWorkers"><br>'));
+
+		//Maximum workers input field
+        form.append("Amount of memory for the VM:<br>");
+        form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
+
+        //Maximum workers input field
+        form.append("Size of the root disk of the Wns:<br>");
+        form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
+
+        //Maximum workers input field
+        form.append("Number of GPUs:<br>");
+        form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
+    }
 	
 	//Append all to dialog
 	deployDialog.append(form);
 
-	// if(deployInfo.topology == "Advanced"){
-    //         //Informative text
-	//     deployDialog.append($("<br>"));
-    //         deployDialog.append($("<p>Select cluster applications</p>"));
-	//     deployDialog.append($("<br>"));
-	    
-	//     deployDialog.append(ul);
-	// }
-	
 	deployDialog.dialog("option", "buttons",{
             "Back": function(){ back_function();},
 	    "Deploy": function() {
@@ -929,14 +1022,16 @@ define([
     }
 
     var deployIMCommand = function(obj, templateURL){
-
-	var userReplace;
-	if(obj.frontend.user.length > 0){
-	    userReplace = obj.frontend.user;
-	}
-	else{
-	    userReplace = "root";
-	}
+	
+	//Add applications
+	// for(let i = 0; i < obj.apps.length; i++){
+	//     //Check if is a local or a ec3 application
+	//     if(localApplications.indexOf(obj.apps[i]) > -1){		
+	// 	cmd += " __local_" + obj.apps[i];
+	//     } else{
+	// 	cmd += " " + obj.apps[i];
+	//     }
+	// }
 	
 	var pipeAuth = obj.infName + "-auth-pipe";
 	var imageRADL = obj.infName;
@@ -949,87 +1044,14 @@ define([
 
 	//Create pipes
 	cmd += "mkfifo $PWD/" + pipeAuth + "\n";
-	//Write data to pipes/files
-	cmd += "echo -e \"";
-
-	cmd += "tosca_definitions_version: tosca_simple_yaml_1_0\n"
-
-	if(obj.deploymentType == "OpenNebula"){
-	    cmd += "description: Deploy on OpenNebula\n";
-	} else if (obj.deploymentType == "EC2"){
-	    cmd += "description: Deploy on EC2\n";
-	}
-
-	cmd += "topology_template:\n";
-	cmd += "  node_templates:\n";
-
-	//Frontend
-	cmd += "    front:\n";
-	cmd += "      type: tosca.nodes.indigo.Compute\n";
-	cmd += "      capabilities:\n";
 	
-
-	
-
-	    if(obj.frontend.image.length > 0){
-            cmd += "        host:\n";
-			cmd += "          properties:\n";
-			cmd += "            num_cpus: " + obj.frontend.CPUs + "\n";
-			cmd += "            mem_size: " + obj.frontend.memory + " MB \n";
-	    }
-		
-		cmd += "        os:\n";
-		cmd += "          properties:\n";
-		cmd += "            type: linux\n";
-		if(obj.deploymentType == "EC2"){
-			cmd += "            image: '" + obj.frontend.image + "'\n";
-		}
-		else if(obj.deploymentType == "OpenNebula"){
-			cmd += "            image: '" + obj.frontend.image + "'\n";
-		}
-	    cmd += "\n"
-	
-
-	//Workers
-	cmd += "    wn:\n";
-	cmd += "      type: tosca.nodes.indigo.Compute\n";
-	cmd += "      capabilities:\n";
-
-	    if(obj.worker.image.length > 0){
-            cmd += "        host:\n";
-			cmd += "          properties:\n";
-			cmd += "            num_cpus: " + obj.worker.CPUs + "\n";
-			cmd += "            mem_size: " + obj.worker.memory + " MB\n";
-	    }
-
-		cmd += "        os:\n";
-		cmd += "          properties:\n";
-		cmd += "            type: linux\n";
-		if(obj.deploymentType == "EC2"){
-			cmd += "            image: '" + obj.worker.image + "'\n";
-		}
-		else if(obj.deploymentType == "OpenNebula"){
-			cmd += "            image: '" + obj.worker.image + "'\n";
-		}
-
-	    cmd += "\n"
-		
-	cmd += "\" > ~/.imclient/templates/" + imageRADL + ".yml\n";
+	// Copy the contents of an existing template file to the desired location
+    cmd += "\n cp $PWD/apricot_plugin/templates/__local_simple-node-disk.yml ~/.imclient/templates/" + imageRADL + ".yml\n";
 
 	cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
 			"id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + ";\" > $PWD/" + pipeAuth + " & \n"
 	//Create final command where the output is stored in "imOut"
 	cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " create " + "~/.imclient/templates/" + imageRADL + ".yml -r https://im.egi.eu/im" + " `\" \n";
-	
-	//Add applications
-	// for(let i = 0; i < obj.apps.length; i++){
-	//     //Check if is a local or a ec3 application
-	//     if(localApplications.indexOf(obj.apps[i]) > -1){		
-	// 	cmd += " __local_" + obj.apps[i];
-	//     } else{
-	// 	cmd += " " + obj.apps[i];
-	//     }
-	// }
 
 	//Remove pipe
 	cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";

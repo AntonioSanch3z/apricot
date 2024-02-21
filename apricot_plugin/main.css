@@ -6,11 +6,17 @@ table, td, th {
   border: 1px solid black;
 }
 
+ul {
+  padding-inline-start: 0%;
+  line-height: 0.5;
+}
+
 .checkbox-grid li {
     display: block;
-    float: left;
-    width: 25%;
-    white-space: nowrap;
+}
+
+.checkbox-grid label {
+  margin-left: 5px;
 }
 
 .formButton {

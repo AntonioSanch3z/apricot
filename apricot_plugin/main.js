@@ -19,16 +19,9 @@ define([
     //********************//
 
     var prefix = "infrastructure-deployment";
-
-    var commonapps = ["openports"];
     var applications = [];
-    var localApplications = ["compilers", "openmpi", "nfs", "sshkey", "onedata", "openports", "git"];
-
     var templatesURL = "";
-    var localTemplatePrefix = "__local_";
-
     var deployInfo = {};
-
     var deploying = false; //Stores if the notebook is deploying something
 
     var clearDeployInfo = function () {
@@ -375,7 +368,7 @@ define([
             },
             "Simple-node-disk": function () {
                 deployInfo.recipe = "Simple-node-disk";
-                applications = ["galaxy", "ansible-tasks", "noderedvm"];
+                applications = ["galaxy", "ansible_tasks", "noderedvm", "minio_compose"];
                 state_recipe_features();
             },
             "Slurm": function () {
@@ -385,7 +378,7 @@ define([
             },
             "Kubernetes": function () {
                 deployInfo.recipe = "Kubernetes";
-                applications = ["kubeapps", "prometheus", "minio", "nodered", "influxdb", "argo"];
+                applications = ["kubeapps", "prometheus", "minio_compose", "noderedvm", "influxdb", "argo"];
                 state_recipe_features();
             }
         });
@@ -403,18 +396,18 @@ define([
         //Clear dialog
         deployDialog.empty();
 
-        deployDialog.append($("<p>Select recipe optional features</p>"));
+        deployDialog.append($("<p>Select recipe optional features</p><br>"));
 
         //Create check boxes with optional app
         var ul = $('<ul class="checkbox-grid">');
         for (let i = 0; i < applications.length; i++) {
             //Create line
-            let line = $('<li></li>'); //Force checkbox and label to stay at same line
+            let line = $('<li></li>');
             //Create checkbox
             let checkbox = $('<input type="checkbox" id="' + applications[i] + '-appCheckID" name="' + applications[i] + '" value="' + applications[i] + '">');
             //Create label
             let label = $('<label for="' + applications[i] + '"></label>');
-            label.text(applications[i])
+            label.text(" " + applications[i])
 
             //Append checkbox and label to line
             line.append(checkbox);
@@ -976,16 +969,6 @@ define([
 
     var deployIMCommand = function (obj, templateURL) {
 
-        //Add applications
-        // for(let i = 0; i < obj.apps.length; i++){
-        //     //Check if is a local or a ec3 application
-        //     if(localApplications.indexOf(obj.apps[i]) > -1){		
-        // 	cmd += " __local_" + obj.apps[i];
-        //     } else{
-        // 	cmd += " " + obj.apps[i];
-        //     }
-        // }
-
         var pipeAuth = obj.infName + "-auth-pipe";
         var imageRADL = obj.infName;
         var cmd = "%%bash \n";
@@ -999,10 +982,47 @@ define([
         cmd += "mkfifo $PWD/" + pipeAuth + "\n";
 
         // Copy the contents of an existing template file to the desired location
-        cmd += "\n cp $PWD/apricot_plugin/templates/__local_simple-node-disk.yml ~/.imclient/templates/" + imageRADL + ".yml\n";
+        cmd += "\n cp $PWD/apricot_plugin/templates/simple-node-disk.yaml ~/.imclient/templates/" + imageRADL + ".yaml\n";
 
-        cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
+        // //Add applications
+        // for (let i = 0; i < obj.apps.length; i++) {
+        //     cmd += " " + obj.apps[i];
+        // }
+
+        // // Load and parse the simple-node-disk template
+        // $.get(templateURL, function (data) {
+        //     var yamlContent = jsyaml.load(data);
+
+        //     // Add inputs from other templates
+        //     obj.apps.forEach(function (app) {
+        //         // Load and parse other templates
+        //         $.get('templates/' + app.toLowerCase() + '.yaml', function (appData) {
+        //             var appYamlContent = jsyaml.load(appData);
+
+        //             // Add inputs
+        //             yamlContent.topology_template.inputs = Object.assign(
+        //                 yamlContent.topology_template.inputs,
+        //                 appYamlContent.topology_template.inputs
+        //             );
+
+        //             // Add node_templates
+        //             yamlContent.topology_template.node_templates = Object.assign(
+        //                 yamlContent.topology_template.node_templates,
+        //                 appYamlContent.topology_template.node_templates
+        //             );
+
+        //             // Add outputs
+        //             yamlContent.topology_template.outputs = Object.assign(
+        //                 yamlContent.topology_template.outputs,
+        //                 appYamlContent.topology_template.outputs
+        //             );
+        //         });
+        //     });
+        // });
+
+        cmd += "\necho -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
             "id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + ";\" > $PWD/" + pipeAuth + " & \n"
+        // cmd += "echo '" + jsyaml.dump(yamlContent) + "'\n";
         //Create final command where the output is stored in "imOut"
         cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " create " + "~/.imclient/templates/" + imageRADL + ".yml -r https://im.egi.eu/im" + " `\" \n";
 

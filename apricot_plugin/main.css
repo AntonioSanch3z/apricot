@@ -1,4 +1,3 @@
- 
 table {
   border-collapse: collapse;
 }
@@ -11,6 +10,14 @@ table, td, th {
     display: block;
     float: left;
     width: 25%;
+    white-space: nowrap;
+}
+
+.formButton {
+  border-radius: 10px 10px 0 0;
+  text-align: center;
+  display: inline-block;
+  cursor: pointer;
 }
 
 .loader {

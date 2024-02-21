@@ -3,12 +3,13 @@ define([
     'jquery',
     'base/js/namespace',
     'base/js/events',
+    'node_modules/js-yaml/dist/js-yaml.js' // Add js-yaml as a dependency
 ], function (
     requirejs,
     $,
     Jupyter,
     events,
-    createRsaKeys
+    jsyaml
 ) {
 
     "use strict";
@@ -106,8 +107,7 @@ define([
             var name = keyNames[i];
 
             //Create column
-            var column = $("<th>")
-                .append(name)
+            var column = $("<th>").append(name)
 
             //Append column to row
             row.append(column);
@@ -408,21 +408,22 @@ define([
         //Create check boxes with optional app
         var ul = $('<ul class="checkbox-grid">');
         for (let i = 0; i < applications.length; i++) {
-
             //Create line
-            let line = $('<li style="white-space:nowrap">'); //Force checkbox and label to stay at same line
+            let line = $('<li></li>'); //Force checkbox and label to stay at same line
             //Create checkbox
             let checkbox = $('<input type="checkbox" id="' + applications[i] + '-appCheckID" name="' + applications[i] + '" value="' + applications[i] + '">');
             //Create label
-            let label = $('<label for=" ' + applications[i] + '">');
+            let label = $('<label for="' + applications[i] + '"></label>');
             label.text(applications[i])
 
-            //Append all to line
+            //Append checkbox and label to line
             line.append(checkbox);
             line.append(label);
 
             //Append line to grid
             ul.append(line);
+            //Append line break after each line
+            ul.append('<br>');
         }
 
         //Append all to dialog
@@ -467,12 +468,12 @@ define([
         var text2 = "";
         var text3 = "";
         if (deployInfo.deploymentType == "EC2") {
-            text1 = "<p>Introduce AWS IAM credentials</p>";
+            text1 = "<p>Introduce AWS IAM credentials</p><br>";
             text2 = "Access Key ID:<br>";
             text3 = "Secret Access Key:<br>";
         }
         else if (deployInfo.deploymentType == "OpenNebula") {
-            text1 = "<p>Introduce ONE credentials</p>";
+            text1 = "<p>Introduce ONE credentials</p><br>";
             text2 = "Username:<br>";
             text3 = "Password:<br>";
 
@@ -482,7 +483,7 @@ define([
 
         }
         else if (deployInfo.deploymentType == "OpenStack") {
-            text1 = "<p>Introduce OST credentials</p>";
+            text1 = "<p>Introduce OST credentials</p><br>";
             text2 = "Username:<br>";
             text3 = "Password:<br>";
 
@@ -758,8 +759,8 @@ define([
         Jupyter.keyboard_manager.disable();
 
         if (deployInfo.recipe != "Simple-node-disk") {
-            var workerFormButton = $('<button class="formButton">Worker specifications</button>');
-            var feFormButton = $('<button class="formButton">Frontend specifications</button>');
+            var workerFormButton = $('<button class="formButton">Worker specs</button>');
+            var feFormButton = $('<button class="formButton">Frontend specs</button>');
             deployDialog.append(workerFormButton);
             deployDialog.append(feFormButton);
 
@@ -776,7 +777,7 @@ define([
 
         //Create form for worker node
         var form = $("<form>")
-        form.append($("<p>Introduce worker VM specifications</p>"));
+        form.append($("<p>Introduce worker VM specifications</p><br>"));
 
         form.append("Cluster name:<br>");
         form.append($('<input id="clusterName" type="text" value="' + deployInfo.infName + '"><br>'));
@@ -797,8 +798,8 @@ define([
         form.append($('<input id="clusterGPUs" type="number" value="1" min="1"><br>'));
 
         //Create form for frontend node
-        var form2 = $("<form>");
-        form2.append("Introduce frontend VM specifications:<br>");
+        var form2 = $("<form>")
+        form2.append("<p>Introduce frontend VM specifications</p><br>");
 
         form2.append("Number of CPUs for each VM:<br>");
         form2.append($('<input id="FECPUs" type="number" value="1" min="1"><br>'));
@@ -844,76 +845,70 @@ define([
     }
 
     var state_deploy_features = function () {
-        //Get dialog
+        // Get dialog
         var deployDialog = $("#dialog-deploy");
 
-        //Clear dialog
+        // Clear dialog
         deployDialog.empty();
 
-        //Disable shortcuts
+        // Disable shortcuts
         Jupyter.keyboard_manager.disable();
 
         var apps = deployInfo.apps;
-        var formGalaxy = $("<form>");
-        var formNodeRed = $("<form>");
-        var formAnsible = $("<form>");
 
-        apps.forEach(function (app) {
+        // Keep track of the index of the currently shown form
+        var currentIndex = 0;
+
+        apps.forEach(function (app, index) {
             var appButton = $('<button class="formButton">' + app + '</button>');
             appButton.click(function () {
                 var appName = $(this).text().toLowerCase();
-                formGalaxy.toggle(appName === 'galaxy');
-                formNodeRed.toggle(appName === 'noderedvm');
-                formAnsible.toggle(appName === 'ansible-tasks');
+                deployDialog.find('form').hide(); // Hide all forms
+                deployDialog.find('#form-' + appName).show(); // Show the form for the selected app
+                currentIndex = index; // Update the currentIndex
             });
             deployDialog.append(appButton);
         });
 
-        //Create form for galaxy
-        formGalaxy.append("<p>Galaxy specifications</p>");
-        formGalaxy.append("Email of the Galaxy admin user:<br>");
-        formGalaxy.append($('<input id="galaxyUsername" type="text" value="admin@admin.com"><br>'));
-        formGalaxy.append("Password of the Galaxy admin user:<br>");
-        formGalaxy.append($('<input id="galaxyPass" type="password" value="adminpass"><br>'));
-        formGalaxy.hide();
+        // Dynamically create forms based on YAML templates
+        apps.forEach(function (app, index) {
+            var form = $('<form id="form-' + app.toLowerCase() + '">');
+            $.get('templates/' + app.toLowerCase() + '.yaml', function (data) {
+                form.append("<p>Specifications for " + app + " application</p><br>");
+                // Parse YAML content
+                var yamlContent = jsyaml.load(data);
+                var inputs = yamlContent.topology_template.inputs;
 
-        //Create form for Node-RED
-        formNodeRed.append("<p>Node-RED specifications</p>");
-        formNodeRed.append("Name of the admin user:<br>");
-        formNodeRed.append($('<input id="nodeREDUsername" type="text" value="admin"><br>'));
-        formNodeRed.append("Password of the full admin user (adminpass). See how to get it https://nodered.org/docs/user-guide/runtime/securing-node-red#generating-the-password-hash<br>");
-        formNodeRed.append($('<input id="nodeREDPass" type="password" value="$2b$08$BZqMjl9G.0itJFac/WY3mea/Oq1HCiYO3DGcQ9Uc8pldFdfVN/fvi"><br>'));
-        formNodeRed.hide();
+                // Extract fields from YAML content
+                Object.keys(inputs).forEach(function (key) {
+                    var description = inputs[key].description;
+                    form.append('<label for="' + key + '">' + description + ':</label><br>');
+                    form.append('<input type="text" id="' + key + '" name="' + description + '"><br>');
+                });
 
-        //Create form for MinIO
-        formAnsible.append("<p>Ansible specifications</p>");
-        formAnsible.append("Ansible tasks (In case of using double quotes you have to escape it with \\):<br>");
-        formAnsible.append($('<textarea id="ansibleRecipe"></textarea><br>'));
-        formAnsible.append("or specify an URL of a set of Ansible tasks<br>");
-        formAnsible.append($('<input id="ansibleURL" type="text"><br>'));
-        formAnsible.hide();
+                // Append form to dialog
+                deployDialog.append(form);
+                form.hide(); // Hide the form initially
 
-        deployDialog.append(formGalaxy);
-        deployDialog.append(formNodeRed);
-        deployDialog.append(formAnsible);
+                // Show the form for the first app by default
+                if (index === 0) {
+                    form.show();
+                }
+            });
+        });
 
-        // Handle form visibility based on the first app
-        var firstApp = apps.length > 0 ? apps[0] : null;
-        if (firstApp === 'galaxy') {
-            formGalaxy.show();
-        } else if (firstApp === 'ansible-tasks') {
-            formAnsible.show();
-        } else if (firstApp === 'noderedvm') {
-            formNodeRed.show();
-        }
+        // Show the form for the first app by default
+        deployDialog.find('#form-' + apps[0].toLowerCase()).show();
 
         deployDialog.dialog("option", "buttons", {
-            "Back": state_deploy_vmSpec,
+            "Back": function () {
+                state_deploy_vmSpec();
+            },
             "Deploy": function () {
                 state_deploy_app();
             }
         });
-    }
+    };
 
     var state_deploy_app = function () {
         var deployDialog = $("#dialog-deploy");

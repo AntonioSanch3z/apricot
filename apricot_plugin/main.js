@@ -865,7 +865,7 @@ define([
             var templateName = metadata.template_name; // Get the template name
             var inputs = data.topology_template.inputs;
 
-            form.append("<p>Specifications for " + templateName + " application</p><br>");
+            form.append("<p>Specifications for the " + templateName + " application.</p><br>");
 
             // Create button with the template name
             var appButton = $('<button class="formButton">' + templateName + '</button>');
@@ -880,11 +880,15 @@ define([
             buttonsContainer.append(appButton);
 
             // Extract fields from YAML content
+            if (inputs) {
             Object.keys(inputs).forEach(function (key) {
                 var description = inputs[key].description;
                 form.append('<label for="' + key + '">' + description + ':</label><br>');
                 form.append('<input type="text" id="' + key + '" name="' + description + '"><br>');
             });
+        } else {
+            form.append("<p>No inputs to be filled.</p><br>");
+        }
 
             // Append form to dialog
             deployDialog.append(form);

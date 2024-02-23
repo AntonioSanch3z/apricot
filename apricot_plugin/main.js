@@ -3,7 +3,7 @@ define([
     'jquery',
     'base/js/namespace',
     'base/js/events',
-    'node_modules/js-yaml/dist/js-yaml.js' // Add js-yaml as a dependency
+    'node_modules/js-yaml/dist/js-yaml.js'
 ], function (
     requirejs,
     $,
@@ -188,77 +188,75 @@ define([
         console.log("Creating deployments list window");
 
         // Get cluster list 
+        // var callbacks = {
+        //     iopub: {
+        //         output: function (data) {
+        //             //Check message
+        //             var check = checkStream(data)
+        //             if (check < 0) return; //Not a stream
+        //             if (check > 0) { //Error message
+        //                 alert(data.content.text);
+        //                 return;
+        //             }
 
-        var callbacks = {
-            iopub: {
-                output: function (data) {
-                    //Check message
-                    var check = checkStream(data)
-                    if (check < 0) return; //Not a stream
-                    if (check > 0) { //Error message
-                        alert(data.content.text);
-                        return;
-                    }
+        //             //Successfully execution
+        //             //console.log("Reviced:")
+        //             //console.log(data.content.text)
 
-                    //Successfully execution
-                    //console.log("Reviced:")
-                    //console.log(data.content.text)
+        //             //Parse data
+        //             var words = data.content.text.split(" ");
+        //             var lists = {};
+        //             lists["Name"] = [];
+        //             lists["State"] = [];
+        //             lists["IP"] = [];
+        //             lists["Nodes"] = [];
 
-                    //Parse data
-                    var words = data.content.text.split(" ");
-                    var lists = {};
-                    lists["Name"] = [];
-                    lists["State"] = [];
-                    lists["IP"] = [];
-                    lists["Nodes"] = [];
+        //             for (let i = 5; i < words.length; i += 4) {
+        //                 lists.Name.push(words[i]);
+        //                 lists.State.push(words[i + 1]);
+        //                 lists.IP.push(words[i + 2]);
+        //                 lists.Nodes.push(words[i + 3]);
+        //             }
 
-                    for (let i = 5; i < words.length; i += 4) {
-                        lists.Name.push(words[i]);
-                        lists.State.push(words[i + 1]);
-                        lists.IP.push(words[i + 2]);
-                        lists.Nodes.push(words[i + 3]);
-                    }
+        //             var table = createTable(lists);
 
-                    var table = createTable(lists);
+        //             //Check if dialog has been already created
+        //             if ($("#dialog-deployments-list").length == 0) {
+        //                 var listDeployment_dialog = $('<div id="dialog-deployments-list" title="Deployments list">')
+        //                     .append(table)
+        //                 $("body").append(listDeployment_dialog);
+        //                 $("#dialog-deployments-list").dialog();
+        //             } else {
+        //                 //Clear dialog
+        //                 $("#dialog-deployments-list").empty();
 
-                    //Check if dialog has been already created
-                    if ($("#dialog-deployments-list").length == 0) {
-                        var listDeployment_dialog = $('<div id="dialog-deployments-list" title="Deployments list">')
-                            .append(table)
-                        $("body").append(listDeployment_dialog);
-                        $("#dialog-deployments-list").dialog();
-                    } else {
-                        //Clear dialog
-                        $("#dialog-deployments-list").empty();
-
-                        //Append dable
-                        $("#dialog-deployments-list").append(table)
-                        $("#dialog-deployments-list").dialog("open");
-                    }
-                    if (show == false) {
-                        $("#dialog-deployments-list").dialog("close");
-                    }
-                }
-            }
-        };
+        //                 //Append dable
+        //                 $("#dialog-deployments-list").append(table)
+        //                 $("#dialog-deployments-list").dialog("open");
+        //             }
+        //             if (show == false) {
+        //                 $("#dialog-deployments-list").dialog("close");
+        //             }
+        //         }
+        //     }
+        // };
 
         //Create listing script
-        var cmd = "%%bash \n";
-        cmd += "imOut=\"`python3 /usr/local/bin/im_client.py list`\"\n";
-        //Print IM output on stderr or stdout
-        cmd += "if [ $? -ne 0 ]; then \n";
-        cmd += "    >&2 echo -e $imOut \n";
-        cmd += "    exit 1\n";
-        cmd += "else\n";
-        cmd += "    echo -e $imOut \n";
-        cmd += "fi\n";
+        // var cmd = "%%bash \n";
+        // cmd += "imOut=\"`python3 /usr/local/bin/im_client.py list`\"\n";
+        // //Print IM output on stderr or stdout
+        // cmd += "if [ $? -ne 0 ]; then \n";
+        // cmd += "    >&2 echo -e $imOut \n";
+        // cmd += "    exit 1\n";
+        // cmd += "else\n";
+        // cmd += "    echo -e $imOut \n";
+        // cmd += "fi\n";
 
         //console.log(cmd);
         //Deploy using IM
-        var Kernel = Jupyter.notebook.kernel;
-        Kernel.execute(cmd, callbacks);
+        // var Kernel = Jupyter.notebook.kernel;
+        // Kernel.execute(cmd, callbacks);
     }
-
 
     var create_Deploy_dialog = function () {
         console.log("Creating deploy window");
@@ -305,8 +303,6 @@ define([
 
                         deployInfo.id = "one";
                         deployInfo.deploymentType = "OpenNebula";
-
-                        //state_deploy_credentials();
                         state_recipe_type();
                     }
                 },
@@ -322,7 +318,6 @@ define([
                         deployInfo.id = "ec2";
                         deployInfo.deploymentType = "EC2";
 
-                        //state_deploy_credentials();
                         state_recipe_type();
                     },
                 },
@@ -338,7 +333,6 @@ define([
                         deployInfo.id = "ost";
                         deployInfo.deploymentType = "OpenStack";
 
-                        //state_deploy_credentials();
                         state_recipe_type();
                     }
                 }
@@ -401,13 +395,21 @@ define([
         //Create check boxes with optional app
         var ul = $('<ul class="checkbox-grid">');
         for (let i = 0; i < applications.length; i++) {
-            //Create line
+
+            // Load YAML file
+        $.get('templates/' + applications[i].toLowerCase() + '.yaml', function (data) {
+            // Parse YAML content
+            var yamlContent = jsyaml.load(data);
+            var metadata = yamlContent.metadata;
+            var templateName = metadata.template_name;
+
+            // Create line
             let line = $('<li></li>');
-            //Create checkbox
-            let checkbox = $('<input type="checkbox" id="' + applications[i] + '-appCheckID" name="' + applications[i] + '" value="' + applications[i] + '">');
-            //Create label
+            // Create checkbox
+            let checkbox = $('<input type="checkbox" id="' + applications[i] + '-appCheckID" name="' + applications[i] + '" value="' + templateName + '">');
+            // Create label
             let label = $('<label for="' + applications[i] + '"></label>');
-            label.text(" " + applications[i])
+            label.text(" " + templateName);
 
             //Append checkbox and label to line
             line.append(checkbox);
@@ -417,6 +419,7 @@ define([
             ul.append(line);
             //Append line break after each line
             ul.append('<br>');
+        });
         }
 
         //Append all to dialog
@@ -543,7 +546,7 @@ define([
         Jupyter.keyboard_manager.disable();
 
         //Informative text
-        deployDialog.append($("<p>Introduce required EC2 instance types:</p>"));
+        deployDialog.append($("<p>Introduce required EC2 instance types</p><br>"));
 
         //Create form for input
         var form = $("<form>")
@@ -619,7 +622,7 @@ define([
                 deployInfo.worker.image = imageURL;
                 //deployInfo.worker.user = $("#imageUserIn").val();
 
-                state_deploy_app(state_deploy_EC2_instances);
+                state_deploy_app();
             }
         });
     }
@@ -849,59 +852,61 @@ define([
 
         var apps = deployInfo.apps;
 
-        // Keep track of the index of the currently shown form
-        var currentIndex = 0;
+        // Container for buttons
+        var buttonsContainer = $('<div id="buttons-container"></div>');
+        deployDialog.append(buttonsContainer); // Moved the buttonsContainer creation to be added to the dialog
 
-        apps.forEach(function (app, index) {
-            var appButton = $('<button class="formButton">' + app + '</button>');
+        // Dynamically create forms based on YAML templates
+        async function createForm(app, index) {
+            var form = $('<form id="form-' + app.toLowerCase() + '">');
+            var response = await $.get('templates/' + app.toLowerCase() + '.yaml');
+            var data = jsyaml.load(response);
+            var metadata = data.metadata;
+            var templateName = metadata.template_name; // Get the template name
+            var inputs = data.topology_template.inputs;
+
+            form.append("<p>Specifications for " + templateName + " application</p><br>");
+
+            // Create button with the template name
+            var appButton = $('<button class="formButton">' + templateName + '</button>');
+
             appButton.click(function () {
                 var appName = $(this).text().toLowerCase();
                 deployDialog.find('form').hide(); // Hide all forms
-                deployDialog.find('#form-' + appName).show(); // Show the form for the selected app
-                currentIndex = index; // Update the currentIndex
+                form.show(); // Show the form for the selected app
             });
-            deployDialog.append(appButton);
-        });
 
-        // Dynamically create forms based on YAML templates
-        apps.forEach(function (app, index) {
-            var form = $('<form id="form-' + app.toLowerCase() + '">');
-            $.get('templates/' + app.toLowerCase() + '.yaml', function (data) {
-                form.append("<p>Specifications for " + app + " application</p><br>");
-                // Parse YAML content
-                var yamlContent = jsyaml.load(data);
-                var inputs = yamlContent.topology_template.inputs;
+            // Append button to buttons container
+            buttonsContainer.append(appButton);
 
-                // Extract fields from YAML content
-                Object.keys(inputs).forEach(function (key) {
-                    var description = inputs[key].description;
-                    form.append('<label for="' + key + '">' + description + ':</label><br>');
-                    form.append('<input type="text" id="' + key + '" name="' + description + '"><br>');
-                });
+            // Extract fields from YAML content
+            Object.keys(inputs).forEach(function (key) {
+                var description = inputs[key].description;
+                form.append('<label for="' + key + '">' + description + ':</label><br>');
+                form.append('<input type="text" id="' + key + '" name="' + description + '"><br>');
+            });
 
-                // Append form to dialog
-                deployDialog.append(form);
-                form.hide(); // Hide the form initially
+            // Append form to dialog
+            deployDialog.append(form);
 
-                // Show the form for the first app by default
-                if (index === 0) {
-                    form.show();
+            // Show the form for the first app by default
+            if (index !== 0) {
+                form.hide();
+            }
+        }
+
+        Promise.all(apps.map(createForm)).then(() => {
+            deployDialog.dialog("option", "buttons", {
+                "Back": function () {
+                    state_deploy_vmSpec();
+                },
+                "Deploy": function () {
+                    state_deploy_app();
                 }
             });
         });
-
-        // Show the form for the first app by default
-        deployDialog.find('#form-' + apps[0].toLowerCase()).show();
-
-        deployDialog.dialog("option", "buttons", {
-            "Back": function () {
-                state_deploy_vmSpec();
-            },
-            "Deploy": function () {
-                state_deploy_app();
-            }
-        });
     };
+
 
     var state_deploy_app = function () {
         var deployDialog = $("#dialog-deploy");

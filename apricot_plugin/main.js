@@ -43,34 +43,19 @@ define([
             "recipe": recipe,
             "user": "",
             "credential": "",
-            "deploymentType": "OpenNebula",
+            "deploymentType": "",
             "host": "",
-            "networkID": "",
-            "subnetID": "",
             "tenant": "",
             "id": "",
+            "port": "",
             "infName": "cluster-name",
-            "frontend": {
-                "CPUs": 1, // Number of CPUs
-                "memory": 4,
-                "disk": 10,
-                "instance": "",
-                "memory": 2, //in GB
-                "image": "",
-                "user": "ubuntu",
-                "credentials": "ubuntu"
-            },
             "worker": {
-                "instances": 1, // Number of VMs
-                "CPUs": 1, // Number of CPUs
-                "instance": "",
-                "memory": 2, //in GB
-                "flavour": "ubuntu",
-                "disk": 20,
-                "GPUs": 1,
+                "num_instances": 1,
+                "num_cpus": 1,
+                "mem_size": 2, //in GB
+                "disk_size": 20,
+                "num_gpus": 1,
                 "image": "",
-                "user": "ubuntu",
-                "credentials": "ubuntu",
             },
             "apps": apps,
         }
@@ -281,14 +266,13 @@ define([
         var deployDialog = $("#dialog-deploy");
 
         //Clear instance type
-        deployInfo.frontend.instance = "";
         deployInfo.worker.instance = "";
 
         //Clear dialog
         deployDialog.empty();
 
         //Informative text
-        deployDialog.append($("<p>Select infrastructure provider</p>"));
+        deployDialog.append($("<p>Select infrastructure provider:</p>"));
 
         deployDialog.dialog("option", "buttons",
             [
@@ -351,7 +335,7 @@ define([
         //Clear dialog
         deployDialog.empty();
 
-        deployDialog.append($("<p>Select recipe type</p>"));
+        deployDialog.append($("<p>Select recipe type:</p>"));
 
         deployDialog.dialog("option", "buttons", {
             "Back": {
@@ -367,12 +351,12 @@ define([
             },
             "Slurm": function () {
                 deployInfo.recipe = "Slurm";
-                applications = ["slurm_elastic", "slurm_galaxy", "docker_cluster"];
+                applications = ["slurm_cluster", "slurm_elastic", "slurm_galaxy", "docker_cluster"];
                 state_recipe_features();
             },
             "Kubernetes": function () {
                 deployInfo.recipe = "Kubernetes";
-                applications = ["kubeapps", "prometheus", "minio_compose", "noderedvm", "influxdb", "argo"];
+                applications = ["kubernetes", "kubeapps", "prometheus", "minio_compose", "noderedvm", "influxdb", "argo"];
                 state_recipe_features();
             }
         });
@@ -381,48 +365,55 @@ define([
 
     var state_recipe_features = function () {
 
-        //Get dialog
+        // Get dialog
         var deployDialog = $("#dialog-deploy");
 
-        //Enable shortcuts
+        // Enable shortcuts
         Jupyter.keyboard_manager.enable();
 
-        //Clear dialog
+        // Clear dialog
         deployDialog.empty();
 
-        deployDialog.append($("<p>Select recipe optional features</p><br>"));
+        deployDialog.append($("<p>Select recipe optional features.</p><br>"));
 
-        //Create check boxes with optional app
+        // Create check boxes with optional app
         var ul = $('<ul class="checkbox-grid">');
         for (let i = 0; i < applications.length; i++) {
 
             // Load YAML file
-        $.get('templates/' + applications[i].toLowerCase() + '.yaml', function (data) {
-            // Parse YAML content
-            var yamlContent = jsyaml.load(data);
-            var metadata = yamlContent.metadata;
-            var templateName = metadata.template_name;
+            $.get('templates/' + applications[i].toLowerCase() + '.yaml', function (data) {
+                // Parse YAML content
+                var yamlContent = jsyaml.load(data);
+                var metadata = yamlContent.metadata;
+                var templateName = metadata.template_name;
 
-            // Create line
-            let line = $('<li></li>');
-            // Create checkbox
-            let checkbox = $('<input type="checkbox" id="' + applications[i] + '-appCheckID" name="' + applications[i] + '" value="' + templateName + '">');
-            // Create label
-            let label = $('<label for="' + applications[i] + '"></label>');
-            label.text(" " + templateName);
+                // Create line
+                let line = $('<li></li>');
+                // Create checkbox
+                let checkbox = $('<input type="checkbox" id="' + applications[i] + '-appCheckID" name="' + applications[i] + '" value="' + templateName + '">');
+                // Create label
+                let label = $('<label for="' + applications[i] + '"></label>');
+                label.text(" " + templateName);
 
-            //Append checkbox and label to line
-            line.append(checkbox);
-            line.append(label);
+                // Check if recipe is Slurm or Kubernetes
+                if (deployInfo.recipe === "Slurm" && applications[i] === "slurm_cluster" ||
+                    deployInfo.recipe === "Kubernetes" && applications[i] === "kubernetes") {
+                    checkbox.prop('checked', true); // Check the checkbox
+                    checkbox.prop('disabled', true); // Disable the checkbox
+                }
 
-            //Append line to grid
-            ul.append(line);
-            //Append line break after each line
-            ul.append('<br>');
-        });
+                // Append checkbox and label to line
+                line.append(checkbox);
+                line.append(label);
+
+                // Append line to grid
+                ul.append(line);
+                // Append line break after each line
+                ul.append('<br>');
+            });
         }
 
-        //Append all to dialog
+        // Append all to dialog
         deployDialog.append(ul);
 
         deployDialog.dialog("option", "buttons", {
@@ -436,7 +427,6 @@ define([
                         selectedApplications.push(applications[i]);
                     }
                 }
-                //var selectedApplications = applications.filter(app => $("#" + app + "-appCheckID").is(":checked"));
                 deployInfo.apps = selectedApplications;
 
                 state_deploy_credentials();
@@ -464,12 +454,12 @@ define([
         var text2 = "";
         var text3 = "";
         if (deployInfo.deploymentType == "EC2") {
-            text1 = "<p>Introduce AWS IAM credentials</p><br>";
+            text1 = "<p>Introduce AWS IAM credentials.</p><br>";
             text2 = "Access Key ID:<br>";
             text3 = "Secret Access Key:<br>";
         }
         else if (deployInfo.deploymentType == "OpenNebula") {
-            text1 = "<p>Introduce ONE credentials</p><br>";
+            text1 = "<p>Introduce ONE credentials.</p><br>";
             text2 = "Username:<br>";
             text3 = "Password:<br>";
 
@@ -479,15 +469,15 @@ define([
 
         }
         else if (deployInfo.deploymentType == "OpenStack") {
-            text1 = "<p>Introduce OST credentials</p><br>";
+            text1 = "<p>Introduce OST credentials.</p><br>";
             text2 = "Username:<br>";
             text3 = "Password:<br>";
 
             //Create host input field
-            form.append("host:<br>");
+            form.append("Host:<br>");
             form.append($('<input id="hostIn" type="text" value="' + deployInfo.host + '" name="host"><br>'));
             //Create tenant (project) input field
-            form.append("tenant:<br>");
+            form.append("Tenant:<br>");
             form.append($('<input id="tenantIn" type="text" value="' + deployInfo.tenant + '" name="tenant"><br>'));
         }
 
@@ -508,27 +498,13 @@ define([
                 state_recipe_features();
             },
             "Next": function () {
-                if (deployInfo.deploymentType == "OpenNebula") {
-                    if (deployInfo.host != $("#hostIn").val()) {
-                        //deployInfo.frontend.image = ""
-                        //deployInfo.worker.image = ""
-                        deployInfo.host = $("#hostIn").val();
-                    }
-                }
                 deployInfo.user = $("#userIn").val();
                 deployInfo.credential = $("#userPassIn").val();
 
                 if (deployInfo.deploymentType == "EC2") {
                     state_deploy_EC2_instances();
                 }
-                else if (deployInfo.deploymentType == "OpenNebula") {
-                    state_deploy_vmSpec();
-                }
-                else if (deployInfo.deploymentType == "OpenStack") {
-                    console.log("on construction...");
-                    //deployInfo.tenant = $("#tenantIn").val();
-                    //state_deploy_OST_frontendSpec();
-                }
+                else { state_deploy_vmSpec(); }
             }
         });
     }
@@ -546,56 +522,35 @@ define([
         Jupyter.keyboard_manager.disable();
 
         //Informative text
-        deployDialog.append($("<p>Introduce required EC2 instance types</p><br>"));
+        deployDialog.append($("<p>Introduce required EC2 instance types.</p><br>"));
 
         //Create form for input
         var form = $("<form>")
 
         var zone = "us-east-1";
         var ami = "ami-0044130ca185d0880";
-        if (deployInfo.frontend.image.length > 0) {
-            var words = deployInfo.frontend.image.split('/');
+        // if (deployInfo.worker.image.length > 0) {
+        //     var words = deployInfo.worker.image.split('/');
 
-            if (words.length >= 4) {
-                zone = words[2];
-                ami = words[3];
-            }
-        }
+        //     if (words.length >= 4) {
+        //         zone = words[2];
+        //         ami = words[3];
+        //     }
+        // }
 
         //Create availability zone input field
         form.append("Availability zone:<br>");
-        form.append($('<input id="availabilityZoneIn" type="text" value="' + zone + '" name="availabilityZone"><br>'));
-
+        form.append($('<input id="availabilityZoneIn" type="text" value="' + zone + '"><br>'));
 
         //Create AMI input field 
         form.append("AMI:<br>");
-        form.append($('<input id="AMIIn" type="text" value="' + ami + '" name="AMI"><br>'));
+        form.append($('<input id="amiIn" type="text" value="' + ami + '"><br>'));
 
         if (deployInfo.recipe == "Simple-node-disk") {
             // Port to be opened on AWS
             form.append("Port to be opened in AWS:<br>");
-            form.append($('<input id="clusterMaxWorkersIn" type="number" value="1" min="1" name="clusterMaxWorkers"><br>'));
+            form.append($('<input id="clusterPort" type="number" value="1" min="1"><br>'));
         }
-
-        // //Create instance type input field for fronted
-        // form.append("Frontend instance type:<br>");
-        // form.append($('<input id="frontendInstanceTypeIn" type="text" value="' + deployInfo.frontend.instance + '" name="frontendInstanceType"><br>'));
-
-        // //Create instance type input field for worker
-        // form.append("Worker instance type:<br>");
-        // form.append($('<input id="workerInstanceTypeIn" type="text" value="' + deployInfo.worker.instance + '" name="workerInstanceType"><br>'));
-
-        // //Create VPC input field
-        // form.append("VPC ID:<br>");
-        // form.append($('<input id="networkIDIn" type="text" value="' + deployInfo.networkID + '" name="networkID"><br>'));	            
-
-        // //Create subnet input field
-        // form.append("VPC Subnet ID:<br>");
-        // form.append($('<input id="subnetIDIn" type="text" value="' + deployInfo.subnetID + '" name="subnetID"><br>'));	            
-
-        // //Create image username input field
-        // form.append("Image username:<br>");
-        // form.append($('<input id="imageUserIn" type="text" value="' + deployInfo.frontend.user + '" name="imageUser"><br>'));	    
 
         //Append elements to dialog
         deployDialog.append(form);
@@ -603,139 +558,13 @@ define([
         deployDialog.dialog("option", "buttons", {
             "Back": state_deploy_credentials,
             "Next": function () {
-
                 //Availability zone
                 var AWSzone = $("#availabilityZoneIn").val();
-                var AMI = $("#AMIIn").val();
+                var AMI = $("#amiIn").val();
                 var imageURL = "aws://" + AWSzone + "/" + AMI;
 
-                //deployInfo.networkID = $("#networkIDIn").val();
-                //deployInfo.subnetID = $("#subnetIDIn").val();
-
-                //Frontend
-                //deployInfo.frontend.instance = $("#frontendInstanceTypeIn").val();
-                deployInfo.frontend.image = imageURL;
-                //deployInfo.frontend.user = $("#imageUserIn").val();
-
-                //Worker
-                //deployInfo.worker.instance = $("#workerInstanceTypeIn").val();
                 deployInfo.worker.image = imageURL;
-                //deployInfo.worker.user = $("#imageUserIn").val();
-
-                state_deploy_app();
-            }
-        });
-    }
-
-    // state deploy ONE frontendSpec
-    var state_deploy_ONE_frontendSpec = function () {
-
-        //Get dialog
-        var deployDialog = $("#dialog-deploy");
-
-        //Clear dialog
-        deployDialog.empty();
-
-        //Disable shortcuts
-        Jupyter.keyboard_manager.disable();
-
-        //Informative text
-        deployDialog.append($("<p>Introduce frontend specifications</p>"));
-
-        //Create form for input
-        var form = $("<form>")
-
-        //Create CPU input field
-        form.append("Minimum CPUs:<br>");
-        form.append($('<input id="CPUsIn" type="number" value="' + deployInfo.frontend.CPUs + '" min="1" name="CPUs"><br>'));
-
-        //Create memory input field
-        form.append("Minimum memory (MB):<br>");
-        form.append($('<input id="imageMemIn" type="number" value="' + deployInfo.frontend.memory + '" min="1024" name="imageMem"><br>'));
-
-        //Create image url input field
-        form.append("Image url:<br>");
-        var imageURL = deployInfo.frontend.image;
-        if (imageURL.length == 0) {
-            if (deployInfo.deploymentType = "OpenNebula") {
-                imageURL = "one://" + deployInfo.host + "/";
-            }
-        }
-        form.append($('<input id="imageUrlIn" type="text" value="' + imageURL + '" name="imageUrl"><br>'));
-
-        deployDialog.append(form);
-
-        deployDialog.dialog("option", "buttons", {
-            "Back": state_deploy_credentials,
-            "Next": function () {
-                deployInfo.frontend.CPUs = $("#CPUsIn").val();
-                deployInfo.frontend.memory = $("#imageMemIn").val();
-                deployInfo.frontend.image = $("#imageUrlIn").val();
-
-                state_deploy_vmSpec();
-            }
-        });
-    }
-
-    //state deploy OST frontendSpec
-    var state_deploy_OST_frontendSpec = function () {
-
-        //COMPLETAR!!!!
-
-        //Get dialog
-        var deployDialog = $("#dialog-deploy");
-
-        //Clear dialog
-        deployDialog.empty();
-
-        //Disable shortcuts
-        Jupyter.keyboard_manager.disable();
-
-        //Informative text
-        deployDialog.append($("<p>Introduce frontend specifications</p>"));
-
-        //Create form for input
-        var form = $("<form>")
-
-        //Create CPU input field
-        form.append("Minimum CPUs:<br>");
-        form.append($('<input id="CPUsIn" type="number" value="' + deployInfo.frontend.CPUs + '" min="1" name="CPUs"><br>'));
-
-        //Create memory input field
-        form.append("Minimum memory (MB):<br>");
-        form.append($('<input id="imageMemIn" type="number" value="' + deployInfo.frontend.memory + '" min="1024" name="imageMem"><br>'));
-
-        //Create image url input field
-        form.append("Image url:<br>");
-        var imageURL = deployInfo.frontend.image;
-        if (imageURL.length == 0) {
-            if (deployInfo.deploymentType = "OpenStack") {
-                imageURL = "one://" + deployInfo.host + "/";
-            }
-        }
-        form.append($('<input id="imageUrlIn" type="text" value="' + imageURL + '" name="imageUrl"><br>'));
-
-        deployDialog.append(form);
-
-        deployDialog.dialog("option", "buttons", {
-            "Back": state_deploy_credentials,
-            "Next": function () {
-                deployInfo.frontend.CPUs = $("#CPUsIn").val();
-                deployInfo.frontend.memory = $("#imageMemIn").val();
-                deployInfo.frontend.image = $("#imageUrlIn").val();
-
-                if ($("#imageUserIn").val().length == 0) {
-                    deployInfo.frontend.user = "";
-                } else {
-                    deployInfo.frontend.user = $("#imageUserIn").val();
-                }
-
-                if ($("#imageUserPassIn").val().length == 0) {
-                    deployInfo.frontend.credentials = ""
-                } else {
-                    deployInfo.frontend.credentials = $("#imageUserPassIn").val();
-                }
-
+                deployInfo.port = $("#clusterPort").val();
 
                 state_deploy_vmSpec();
             }
@@ -754,26 +583,9 @@ define([
         //Disable shortcuts
         Jupyter.keyboard_manager.disable();
 
-        if (deployInfo.recipe != "Simple-node-disk") {
-            var workerFormButton = $('<button class="formButton">Worker specs</button>');
-            var feFormButton = $('<button class="formButton">Frontend specs</button>');
-            deployDialog.append(workerFormButton);
-            deployDialog.append(feFormButton);
-
-            workerFormButton.click(function () {
-                form2.hide();
-                form.show();
-            });
-
-            feFormButton.click(function () {
-                form.hide();
-                form2.show();
-            });
-        }
-
         //Create form for worker node
         var form = $("<form>")
-        form.append($("<p>Introduce worker VM specifications</p><br>"));
+        form.append($("<p>Introduce worker VM specifications.</p><br>"));
 
         form.append("Cluster name:<br>");
         form.append($('<input id="clusterName" type="text" value="' + deployInfo.infName + '"><br>'));
@@ -793,22 +605,7 @@ define([
         form.append("Number of GPUs for each VM:<br>");
         form.append($('<input id="clusterGPUs" type="number" value="1" min="1"><br>'));
 
-        //Create form for frontend node
-        var form2 = $("<form>")
-        form2.append("<p>Introduce frontend VM specifications</p><br>");
-
-        form2.append("Number of CPUs for each VM:<br>");
-        form2.append($('<input id="FECPUs" type="number" value="1" min="1"><br>'));
-
-        form2.append("Memory for each VM (GB):<br>");
-        form2.append($('<input id="FEMemory" type="number" value="2" min="2""><br>'));
-
-        form2.append("Size of the root disk of the VM(s) (GB):<br>");
-        form2.append($('<input id="FEDiskSize" type="number" value="20" min="20"><br>'));
-
         deployDialog.append(form);
-        deployDialog.append(form2.hide());
-
 
         deployDialog.dialog("option", "buttons", {
             "Back": function () {
@@ -818,17 +615,11 @@ define([
                 text: deployInfo.apps.length === 0 ? "Deploy" : "Next",
                 click: function () {
                     deployInfo.infName = $("#clusterName").val();
-                    deployInfo.worker.instances = $("#clusterWorkers").val();
-                    deployInfo.worker.CPUs = $("#clusterCPUs").val();
-                    deployInfo.worker.memory = $("#clusterMemory").val();
-                    deployInfo.worker.disk = $("#clusterDiskSize").val();
-                    deployInfo.worker.GPUs = $("#clusterGPUs").val();
-
-                    if (deployInfo.recipe !== "Simple-node-disk") {
-                        deployInfo.frontend.CPUs = $("#FECPUs").val();
-                        deployInfo.frontend.memory = $("#FEMemory").val();
-                        deployInfo.frontend.disk = $("#FEDiskSize").val();
-                    }
+                    deployInfo.worker.num_instances = $("#clusterWorkers").val();
+                    deployInfo.worker.num_cpus = $("#clusterCPUs").val();
+                    deployInfo.worker.mem_size = $("#clusterMemory").val();
+                    deployInfo.worker.disk_size = $("#clusterDiskSize").val();
+                    deployInfo.worker.num_gpus = $("#clusterGPUs").val();
 
                     if (deployInfo.apps.length === 0) {
                         state_deploy_app();
@@ -843,155 +634,303 @@ define([
     var state_deploy_features = function () {
         // Get dialog
         var deployDialog = $("#dialog-deploy");
-
+    
         // Clear dialog
         deployDialog.empty();
-
+    
         // Disable shortcuts
         Jupyter.keyboard_manager.disable();
-
+    
         var apps = deployInfo.apps;
-
+    
         // Container for buttons
         var buttonsContainer = $('<div id="buttons-container"></div>');
         deployDialog.append(buttonsContainer); // Moved the buttonsContainer creation to be added to the dialog
-
+    
         // Dynamically create forms based on YAML templates
         async function createForm(app, index) {
             var form = $('<form id="form-' + app.toLowerCase() + '">');
             var response = await $.get('templates/' + app.toLowerCase() + '.yaml');
             var data = jsyaml.load(response);
+            console.log(data);
             var metadata = data.metadata;
             var templateName = metadata.template_name; // Get the template name
             var inputs = data.topology_template.inputs;
-
+            var nodeTemplates = data.topology_template.node_templates;
+            var outputs = data.topology_template.outputs;
+        
             form.append("<p>Specifications for the " + templateName + " application.</p><br>");
-
+        
             // Create button with the template name
             var appButton = $('<button class="formButton">' + templateName + '</button>');
-
+        
             appButton.click(function () {
                 var appName = $(this).text().toLowerCase();
                 deployDialog.find('form').hide(); // Hide all forms
                 form.show(); // Show the form for the selected app
             });
-
+        
             // Append button to buttons container
             buttonsContainer.append(appButton);
-
+        
             // Extract fields from YAML content
             if (inputs) {
-            Object.keys(inputs).forEach(function (key) {
-                var description = inputs[key].description;
-                form.append('<label for="' + key + '">' + description + ':</label><br>');
-                form.append('<input type="text" id="' + key + '" name="' + description + '"><br>');
-            });
-        } else {
-            form.append("<p>No inputs to be filled.</p><br>");
-        }
-
+                Object.keys(inputs).forEach(function (key) {
+                    var description = inputs[key].description;
+                    var inputField = $('<input type="text" id="' + key + '" name="' + key + '">');
+                    form.append('<label for="' + key + '">' + description + ':</label><br>');
+                    form.append(inputField);
+                });
+            } else {
+                form.append("<p>No inputs to be filled.</p><br>");
+            }
+        
             // Append form to dialog
             deployDialog.append(form);
-
+        
             // Show the form for the first app by default
             if (index !== 0) {
                 form.hide();
             }
+        
+            return { 
+                form,
+                nodeTemplates,
+                outputs
+            }; // Return the form, node templates, and outputs for later use
         }
-
-        Promise.all(apps.map(createForm)).then(() => {
+    
+        Promise.all(apps.map(createForm)).then((forms, nodeTemplates, outputs) => {
+            var nodeTemplates = forms.map(form => form.nodeTemplates);
+            var outputs = forms.map(form => form.outputs);
             deployDialog.dialog("option", "buttons", {
                 "Back": function () {
                     state_deploy_vmSpec();
                 },
                 "Deploy": function () {
-                    state_deploy_app();
+                    var userInputs = forms.map(async function (formData) {
+                        var form = formData.form;
+                        var appName = form.attr('id').replace('form-', '');
+                        var recipeContent = await $.get('templates/' + appName + '.yaml');
+                        var recipeData = jsyaml.load(recipeContent);
+                        var recipeInputs = recipeData.topology_template.inputs;
+        
+                        // Create an object to hold input structure and values
+                        var inputsWithValues = {};
+                        Object.keys(recipeInputs).forEach(function (inputName) {
+                            var defaultValue = recipeInputs[inputName].default || ''; // Get default value if exists
+                            var userInput = form.find('[name="' + inputName + '"]').val(); // Get user input value
+                            inputsWithValues[inputName] = {
+                                description: recipeInputs[inputName].description,
+                                default: defaultValue,
+                                value: userInput
+                            };
+                        });
+        
+                        return {
+                            name: appName,
+                            inputs: inputsWithValues,
+                            nodeTemplates: nodeTemplates,
+                            outputs: outputs
+                        };
+                    });
+                    console.log('userInputs', userInputs);
+                    console.log('nodeTemplates', nodeTemplates);
+                    console.log('outputs', outputs);
+                    state_deploy_app(userInputs, nodeTemplates, outputs);
                 }
             });
         });
+        
     };
-
-
-    var state_deploy_app = function () {
+    
+    var state_deploy_app = function (populatedTemplates, nodeTemplates, outputs) {
         var deployDialog = $("#dialog-deploy");
-
+    
         // Clear dialog
         deployDialog.empty();
-
+    
         // Disable shortcuts
         Jupyter.keyboard_manager.disable();
-
+    
         // Deployment logic
         if (deploying) {
             alert("Previous deploy has not finished.");
             return; // Deploy only one infrastructure at once
         }
         deploying = true;
-
-        // Create kernel callback
-        var callbacks = {
-            iopub: {
-                output: function (data) {
-                    // Check message
-                    var check = checkStream(data)
-
-                    if (check < 0) {
-                        return; // Not a stream
+    
+        // Load and parse the content of simple-node-disk.yaml
+        $.get('templates/simple-node-disk.yaml', async function(content) {
+            try {
+                var parsedConstantTemplate = jsyaml.load(content);
+                console.log('parsedConstantTemplate', parsedConstantTemplate);
+    
+                // Create kernel callback
+                var callbacks = {
+                    iopub: {
+                        output: function (data) {
+                            // Check message
+                            var check = checkStream(data)
+    
+                            if (check < 0) {
+                                return; // Not a stream
+                            }
+    
+                            var pubtext = data.content.text.replace("\r", "\n");
+                            if (check > 0) { // Error message
+                                deploying = false;
+                                alert(pubtext);
+                                console.log(pubtext);
+                                // Clear dialog and reset buttons
+                                deployDialog.empty();
+                                deployDialog.dialog("option", "buttons", {
+                                    "Back": function () {
+                                        state_deploy_vmSpec();
+                                    },
+                                    "Deploy": function () {
+                                        state_deploy_app(populatedTemplates, nodeTemplates, outputs);
+                                    }
+                                });
+                                return; // Exit the function to prevent further recursion
+                            }
+    
+                            // Successfully executed
+                            deploying = false
+                            console.log(pubtext)
+    
+                            // Call self function to reconstruct dialog
+                            state_deploy_app(populatedTemplates, nodeTemplates, outputs);
+                        }
                     }
-
-                    var pubtext = data.content.text.replace("\r", "\n");
-                    if (check > 0) { // Error message
-                        deploying = false;
-                        alert(pubtext);
-                        console.log(pubtext)
-                        // Call self function to reconstruct dialog
-                        state_deploy_app();
-                        return;
-                    }
-
-                    // Successfully executed
-                    deploying = false
-                    console.log(pubtext)
-
-                    // Call self function to reconstruct dialog
-                    state_deploy_app();
-                }
+                };
+    
+                // Merge parsed constant template with populated templates
+                var mergedTemplate = mergeTOSCARecipes(parsedConstantTemplate, populatedTemplates, nodeTemplates, outputs);
+                console.log('mergedTemplate', mergedTemplate);
+    
+                // if (mergedTemplate) {
+                //     // Create deploy script
+                //     var cmd = deployIMCommand(deployInfo, templatesURL, mergedTemplate);
+    
+                //     // Clear dialog
+                //     deployDialog.empty();
+    
+                //     // Show loading spinner
+                //     deployDialog.append($('<div class="loader"></div>'));
+    
+                //     // Remove buttons
+                //     deployDialog.dialog("option", "buttons", {});
+    
+                //     // Deploy using IM
+                //     var Kernel = Jupyter.notebook.kernel;
+                //     Kernel.execute(cmd, callbacks);
+                // } else {
+                //     // Handle error appropriately
+                //     console.error("Error merging TOSCA recipes");
+                // }
+            } catch (error) {
+                console.error("Error parsing simple-node-disk.yaml:", error);
+                // Handle error appropriately
             }
-        };
-
-        // Create deploy script
-        var cmd = deployIMCommand(deployInfo, templatesURL);
-
-        // Clear dialog
-        deployDialog.empty();
-
-        // Show loading spinner
-        deployDialog.append($('<div class="loader"></div>'));
-
-        // Remove buttons
-        deployDialog.dialog("option", "buttons", {});
-
-        // Deploy using IM
-        var Kernel = Jupyter.notebook.kernel;
-        Kernel.execute(cmd, callbacks);
+        });
     };
 
-    var deployIMCommand = function (obj, templateURL) {
+    // var deployIMCommand = function (obj, templateURL, mergedTemplate) {
+    //     var pipeAuth = obj.infName + "-auth-pipe";
+    //     var imageRADL = obj.infName;
+    //     var yamlContent = jsyaml.dump(mergedTemplate);
+    //     var cmd = "%%bash \n";
+    //     cmd += "PWD=`pwd` \n";
+    //     //Remove pipes if exist
+    //     cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
+    //     //Create directory for templates
+    //     cmd += "mkdir $PWD/templates &> /dev/null \n";
+    //     //Create pipes
+    //     cmd += "mkfifo $PWD/" + pipeAuth + "\n";
+    //     // Save mergedTemplate as a YAML file
+    //     cmd += "echo '" + yamlContent + "' > ~/.imclient/templates/" + imageRADL + ".yaml \n";
+    //     // Command to create the infrastructure manager client input
+    //     cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
+    //         "id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + ";\" > $PWD/" + pipeAuth + " & \n";
+    //     // Create final command where the output is stored in "imOut"
+    //     cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " create " + "~/.imclient/templates/" + imageRADL + ".yaml -r https://im.egi.eu/im" + " `\" \n";
+    //     // Remove pipe
+    //     cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
+    //     //Print im output on stderr or stdout
+    //     cmd += "if [ $? -ne 0 ]; then \n";
+    //     cmd += "    >&2 echo -e $imOut \n";
+    //     cmd += "    exit 1\n";
+    //     cmd += "else\n";
+    //     cmd += "    echo -e $imOut \n";
+    //     cmd += "fi\n";
 
-        var pipeAuth = obj.infName + "-auth-pipe";
-        var imageRADL = obj.infName;
-        var cmd = "%%bash \n";
-        cmd += "PWD=`pwd` \n";
-        //Remove pipes if exist
-        cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
-        //Create directory for templates
-        cmd += "mkdir $PWD/templates &> /dev/null \n";
+    //     console.log("cmd", cmd);
+    //     return cmd;
+    // };
+    
 
-        //Create pipes
-        cmd += "mkfifo $PWD/" + pipeAuth + "\n";
+    // var deployIMCommand = function (obj, templateURL) {
 
-        // Copy the contents of an existing template file to the desired location
-        cmd += "\n cp $PWD/apricot_plugin/templates/simple-node-disk.yaml ~/.imclient/templates/" + imageRADL + ".yaml\n";
+    //         var pipeAuth = obj.infName + "-auth-pipe";
+    //         var imageRADL = obj.infName;
+    //         var cmd = "%%bash \n";
+    //         cmd += "PWD=`pwd` \n";
+    //         //Remove pipes if exist
+    //         cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
+    //         //Create directory for templates
+    //         cmd += "mkdir $PWD/templates &> /dev/null \n";
+    //         //Create pipes
+    //         cmd += "mkfifo $PWD/" + pipeAuth + "\n";
+    //         // Copy the contents of an existing template file to the desired location
+    //         cmd += "\n cp $PWD/apricot_plugin/templates/simple-node-disk.yaml ~/.imclient/templates/" + imageRADL + ".yaml\n";
+    //         cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
+    //             "id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + ";\" > $PWD/" + pipeAuth + " & \n"
+    //         //Create final command where the output is stored in "imOut"
+    //         cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " create " + "~/.imclient/templates/mergedTemplate.yaml -r https://im.egi.eu/im" + " `\" \n";
+    //         //Remove pipe
+    //         cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
+
+        // var pipeAuth = obj.infName + "-auth-pipe";
+        // var imageRADL = obj.infName;
+        // var toscaRecipes = deployInfo.apps;
+        // var simpleNodeDiskTemplate = templateURL + "/simple-node-disk.yaml";
+        // // Assume you have an array of TOSCA recipes in toscaRecipes
+        // var mergedYAML = mergeTemplatesWithNodeDisk(toscaRecipes, simpleNodeDiskTemplate);
+        // var cmd = "%%bash \n";
+        // cmd += "PWD=`pwd` \n";
+        // //Remove pipes if exist
+        // cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
+        // //Create directory for templates
+        // cmd += "mkdir $PWD/templates &> /dev/null \n";
+
+        // //Create pipes
+        // cmd += "mkfifo $PWD/" + pipeAuth + "\n";
+
+        // // Write the merged YAML to a file
+        // cmd += "echo '" + mergedYAML + "' > ~/.imclient/templates/" + imageRADL + ".yaml \n";
+
+        // cmd += "\necho -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
+        //     "id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + ";\" > $PWD/" + pipeAuth + " & \n"
+        // // cmd += "echo '" + jsyaml.dump(yamlContent) + "'\n";
+        // //Create final command where the output is stored in "imOut"
+        // cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " create " + "~/.imclient/templates/" + imageRADL + ".yaml -r https://im.egi.eu/im" + " `\" \n";
+
+        // //Remove pipe
+        // cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
+        // //cmd += "rm -r $PWD/templates &> /dev/null \n";
+
+        //Print im output on stderr or stdout
+    //     cmd += "if [ $? -ne 0 ]; then \n";
+    //     cmd += "    >&2 echo -e $imOut \n";
+    //     cmd += "    exit 1\n";
+    //     cmd += "else\n";
+    //     cmd += "    echo -e $imOut \n";
+    //     cmd += "fi\n";
+
+    //     console.log("cmd", cmd);
+    //     return cmd;
+    // }
 
         // //Add applications
         // for (let i = 0; i < obj.apps.length; i++) {
@@ -1024,32 +963,69 @@ define([
         //             yamlContent.topology_template.outputs = Object.assign(
         //                 yamlContent.topology_template.outputs,
         //                 appYamlContent.topology_template.outputs
-        //             );
-        //         });
-        //     });
-        // });
+    //             );
+    //         });
+    //     });
+    // });
 
-        cmd += "\necho -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
-            "id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + ";\" > $PWD/" + pipeAuth + " & \n"
-        // cmd += "echo '" + jsyaml.dump(yamlContent) + "'\n";
-        //Create final command where the output is stored in "imOut"
-        cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " create " + "~/.imclient/templates/" + imageRADL + ".yml -r https://im.egi.eu/im" + " `\" \n";
 
-        //Remove pipe
-        cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
-        //cmd += "rm -r $PWD/templates &> /dev/null \n";
+    async function mergeTOSCARecipes(parsedConstantTemplate, userInputs, nodeTemplates, outputs) {
+        try {
+            var mergedTemplate = JSON.parse(JSON.stringify(parsedConstantTemplate));
 
-        //Print im output on stderr or stdout
-        cmd += "if [ $? -ne 0 ]; then \n";
-        cmd += "    >&2 echo -e $imOut \n";
-        cmd += "    exit 1\n";
-        cmd += "else\n";
-        cmd += "    echo -e $imOut \n";
-        cmd += "fi\n";
+            // Wait for all promises to resolve and process the results
+            var populatedTemplates = await Promise.all(userInputs);
 
-        console.log("cmd2", cmd);
-        return cmd;
+            populatedTemplates.forEach(function (template) {
+                if (template && template.inputs) {
+                    Object.keys(template.inputs).forEach(function (inputName) {
+                        var inputValue = template.inputs[inputName].value;
+
+                        console.log('Merging input:', inputName, 'with value:', inputValue);
+
+                        // Check if the input exists in the parsedConstantTemplate
+                        if (mergedTemplate.topology_template.inputs.hasOwnProperty(inputName)) {
+                            // Update the default value of the existing input
+                            mergedTemplate.topology_template.inputs[inputName].default = inputValue;
+                        } else {
+                            // If the input doesn't exist, add it dynamically
+                            mergedTemplate.topology_template.inputs[inputName] = {
+                                type: 'string',
+                                description: inputName + ' (added dynamically)',
+                                default: inputValue
+                            };
+                        }
+                    });
+                }
+
+                // Merging nodeTemplates
+                if (template.nodeTemplates) {
+                    template.nodeTemplates.forEach(function (nodeTemplatesObj) {
+                        Object.keys(nodeTemplatesObj).forEach(function (nodeTemplateName) {
+                            mergedTemplate.topology_template.node_templates[nodeTemplateName] = nodeTemplatesObj[nodeTemplateName];
+                        });
+                    });
+                }
+
+                // Merging outputs
+                if (template.outputs) {
+                    Object.values(template.outputs).forEach(function (output) {
+                        Object.keys(output).forEach(function (outputName) {
+                            mergedTemplate.topology_template.outputs[outputName] = output[outputName];
+                        });
+                    });
+                }
+
+            });
+
+            console.log('mergedTemplate:', mergedTemplate);
+            return mergedTemplate;
+        } catch (error) {
+            console.error("Error merging TOSCA recipes:", error);
+            return null;
+        }
     }
+
 
     var checkStream = function (data) {
         if (data.msg_type == "stream") {
@@ -1079,7 +1055,6 @@ define([
         }
         Jupyter.notebook.set_dirty();
     }
-
 
     var toggle_Deploy = function () {
         if ($("#dialog-deploy").dialog("isOpen")) {

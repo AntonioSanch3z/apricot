@@ -39,10 +39,10 @@ define([
             "recipe": recipe,
             "id": "",
             "deploymentType": "",
-            "host": "",
+            "host": "ramses.i3m.upv.es:2633",
             "tenant": "",
-            "user": "",
-            "credential": "",
+            "user": "asanchez",
+            "credential": "RamsesOpenNebula9",
             "port": "",
             "infName": "cluster-name",
             "worker": {
@@ -69,18 +69,13 @@ define([
     var createTable = function (obj) {
         var keyNames = Object.keys(obj);
         var nkeys = keyNames.length;
-
         var nElements = 0;
-
         var table = $('<table width="100%" border="5%">');
-
         var row = $("<tr>");
-        //Iterate for all object properties and create
-        //first row with its names.
+
+        //Iterate for all object properties and create first row with its names.
         for (let i = 0; i < nkeys; i++) {
             var name = keyNames[i];
-
-            //Create column
             var column = $("<th>").append(name)
 
             //Append column to row
@@ -93,17 +88,13 @@ define([
         //Apend row to table
         table.append(row);
 
-
         //Iterate for properties elements to create all element rows
         for (let j = 0; j < nElements; j++) {
-
             var row = $("<tr>");
             for (let i = 0; i < nkeys; i++) {
                 var name = keyNames[i];
 
-                //Create column
-                var column = $("<th>")
-                    .append(obj[name][j])
+                var column = $("<th>").append(obj[name][j])
 
                 //Append column to row
                 row.append(column);
@@ -155,11 +146,27 @@ define([
 
     //****************//
     //*   Dialogs    *//
-    //****************//    
+    //****************//
+
+    var listClusters = function () {
+        var pipeAuth = deployInfo.infName + "-auth-pipe";
+        var cmd = "%%bash \n";
+        cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
+            "id = " + deployInfo.id + "; type = " + deployInfo.deploymentType + "; host = " + deployInfo.host + "; username = " + deployInfo.user + "; password = " + deployInfo.credential + "; tenant = " + deployInfo.tenant + ";\" > $PWD/" + pipeAuth + " & \n";
+        cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " list -r https://im.egi.eu/im" + " `\" \n";
+
+        // Print IM output on stderr or stdout
+        cmd += "if [ $? -ne 0 ]; then \n";
+        cmd += "    >&2 echo -e $imOut \n";
+        cmd += "    exit 1\n";
+        cmd += "else\n";
+        cmd += "    echo -e $imOut \n";
+        cmd += "fi\n";
+    }
 
     var create_ListDeployments_dialog = function (show) {
 
-        //Check if kernel is available
+        //If kernel is not available, call the function again when it is available
         if (typeof Jupyter.notebook.kernel == "undefined" || Jupyter.notebook.kernel == null) {
             events.on("kernel_ready.Kernel", function (evt, data) {
                 create_ListDeployments_dialog(show);
@@ -169,74 +176,66 @@ define([
         console.log("Creating deployments list window");
 
         // Get cluster list 
-        // var callbacks = {
-        //     iopub: {
-        //         output: function (data) {
-        //             //Check message
-        //             var check = checkStream(data)
-        //             if (check < 0) return; //Not a stream
-        //             if (check > 0) { //Error message
-        //                 alert(data.content.text);
-        //                 return;
-        //             }
+        var callbacks = {
+            iopub: {
+                output: function (data) {
+                    //Check message
+                    var check = checkStream(data)
+                    if (check < 0) return; //Not a stream
+                    if (check > 0) { //Error message
+                        alert(data.content.text);
+                        return;
+                    }
 
-        //             //Successfully execution
-        //             //console.log("Reviced:")
-        //             //console.log(data.content.text)
+                    //Successfully execution
+                    console.log("Reviced:")
+                    console.log(data.content.text)
 
-        //             //Parse data
-        //             var words = data.content.text.split(" ");
-        //             var lists = {};
-        //             lists["Name"] = [];
-        //             lists["State"] = [];
-        //             lists["IP"] = [];
-        //             lists["Nodes"] = [];
+                    //Parse data
+                    var words = data.content.text.split(" ");
+                    console.log("words", words)
+                    var lists = {};
+                    lists["Name"] = [];
+                    lists["State"] = [];
+                    lists["IP"] = [];
+                    lists["Nodes"] = [];
 
-        //             for (let i = 5; i < words.length; i += 4) {
-        //                 lists.Name.push(words[i]);
-        //                 lists.State.push(words[i + 1]);
-        //                 lists.IP.push(words[i + 2]);
-        //                 lists.Nodes.push(words[i + 3]);
-        //             }
+                    for (let i = 5; i < words.length; i += 4) {
+                        lists.Name.push(words[i]);
+                        lists.State.push(words[i + 1]);
+                        lists.IP.push(words[i + 2]);
+                        lists.Nodes.push(words[i + 3]);
+                    }
 
-        //             var table = createTable(lists);
+                    var table = createTable(lists);
 
-        //             //Check if dialog has been already created
-        //             if ($("#dialog-deployments-list").length == 0) {
-        //                 var listDeployment_dialog = $('<div id="dialog-deployments-list" title="Deployments list">')
-        //                     .append(table)
-        //                 $("body").append(listDeployment_dialog);
-        //                 $("#dialog-deployments-list").dialog();
-        //             } else {
-        //                 //Clear dialog
-        //                 $("#dialog-deployments-list").empty();
+                    //Check if dialog has been already created
+                    if ($("#dialog-deployments-list").length == 0) {
+                        var listDeployment_dialog = $('<div id="dialog-deployments-list" title="Deployments list">')
+                            .append(table)
+                        $("body").append(listDeployment_dialog);
+                        $("#dialog-deployments-list").dialog();
+                    } else {
+                        //Clear dialog
+                        $("#dialog-deployments-list").empty();
 
-        //                 //Append dable
-        //                 $("#dialog-deployments-list").append(table)
-        //                 $("#dialog-deployments-list").dialog("open");
-        //             }
-        //             if (show == false) {
-        //                 $("#dialog-deployments-list").dialog("close");
-        //             }
-        //         }
-        //     }
-        // };
+                        //Append dable
+                        $("#dialog-deployments-list").append(table)
+                        $("#dialog-deployments-list").dialog("open");
+                    }
+                    if (show == false) {
+                        $("#dialog-deployments-list").dialog("close");
+                    }
+                }
+            }
+        };
+        var cmd = listClusters();
 
-        //Create listing script
-        // var cmd = "%%bash \n";
-        // cmd += "imOut=\"`python3 /usr/local/bin/im_client.py list`\"\n";
-        // //Print IM output on stderr or stdout
-        // cmd += "if [ $? -ne 0 ]; then \n";
-        // cmd += "    >&2 echo -e $imOut \n";
-        // cmd += "    exit 1\n";
-        // cmd += "else\n";
-        // cmd += "    echo -e $imOut \n";
-        // cmd += "fi\n";
-
-        //console.log(cmd);
-        //Deploy using IM
-        // var Kernel = Jupyter.notebook.kernel;
-        // Kernel.execute(cmd, callbacks);
+        console.log(cmd);
+        // Deploy using IM
+        var Kernel = Jupyter.notebook.kernel;
+        Kernel.execute(cmd, callbacks);
+        return cmd;
     }
 
     var create_Deploy_dialog = function () {
@@ -252,6 +251,10 @@ define([
         //Close dialog
         $("#dialog-deploy").dialog("close");
     }
+
+    //****************//
+    //*  Deployment  *//
+    //****************// 
 
     // select provider function
     var state_deploy_provider = function () {
@@ -271,7 +274,7 @@ define([
         deployDialog.dialog("option", "buttons",
             [
                 {
-                    text: "ONE",
+                    text: "OpenNebula",
                     click: function () {
 
                         //Check if the provider has been changed
@@ -300,7 +303,7 @@ define([
                     },
                 },
                 {
-                    text: "OST",
+                    text: "OpenStack",
                     click: function () {
 
                         //Check if the provider has been changed
@@ -755,25 +758,25 @@ define([
 
     var state_deploy_app = function (populatedTemplates, nodeTemplates, outputs) {
         var deployDialog = $("#dialog-deploy");
-    
+
         // Clear dialog
         deployDialog.empty();
-    
+
         // Disable shortcuts
         Jupyter.keyboard_manager.disable();
-    
+
         // Deployment logic
         if (deploying) {
             alert("Previous deploy has not finished.");
             return; // Deploy only one infrastructure at once
         }
         deploying = true;
-    
+
         // Load and parse the content of simple-node-disk.yaml
         $.get('templates/simple-node-disk.yaml', async function (content) {
             try {
                 var parsedConstantTemplate = jsyaml.load(content);
-    
+
                 // Populate parsedConstantTemplate with worker values
                 var workerInputs = parsedConstantTemplate.topology_template.inputs;
                 Object.keys(deployInfo.worker).forEach(function (key) {
@@ -788,60 +791,54 @@ define([
                         };
                     }
                 });
-    
+
                 // Merge parsed constant template with populated templates
                 var mergedTemplate = mergeTOSCARecipes(parsedConstantTemplate, populatedTemplates, nodeTemplates, outputs);
-    
+
                 // Ensure mergedTemplate is resolved before dumping YAML
                 Promise.resolve(mergedTemplate).then(function (resolvedTemplate) {
                     var yamlContent = jsyaml.dump(resolvedTemplate);
-    
+
                     // Create deploy script
                     var cmd = deployIMCommand(deployInfo, templatesURL, yamlContent);
-    
+
                     // Clear dialog
                     deployDialog.empty();
-    
+
                     // Show loading spinner
                     deployDialog.append($('<div class="loader"></div>'));
-    
+
                     // Remove buttons
                     deployDialog.dialog("option", "buttons", {});
-    
+
                     // Create kernel callback
                     var callbacks = {
                         iopub: {
                             output: function (data) {
-                                // Check message
-                                var check = checkStream(data);
-    
-                                if (check < 0) {
-                                    return; // Not a stream
-                                }
-    
-                                var pubtext = data.content.text.replace("\r", "\n");
-                                if (check > 0) { // Error message
+                                // Check if the content contains an error
+                                if (data.content.text.includes("ERROR")) {
+                                    // Execute the error handling code if "ERROR" is found
+                                    deploying = false;
+                                    alert(data.content.text);
+                                    if (deployInfo.apps.length === 0) {
+                                        state_deploy_vmSpec();
+                                    } else state_deploy_features();
+                                } else {
+                                    var pubtext = data.content.text.replace("\r", "\n");
                                     deploying = false;
                                     alert(pubtext);
-                                    console.log(pubtext);
-                                    deployDialog.empty();
-                                    return; // Exit the function to prevent further deployment attempts
+                                    create_Deploy_dialog();
                                 }
-    
-                                // Successfully executed
-                                deploying = false
-                                console.log(pubtext)
                             }
                         }
                     };
-    
+
                     // Deploy using IM
                     var Kernel = Jupyter.notebook.kernel;
                     Kernel.execute(cmd, callbacks);
                 });
             } catch (error) {
                 console.error("Error parsing simple-node-disk.yaml:", error);
-                // Handle error appropriately
             }
         });
     };
@@ -859,21 +856,21 @@ define([
         cmd += "mkfifo $PWD/" + pipeAuth + "\n";
         // Save mergedTemplate as a YAML file
         cmd += "echo '" + mergedTemplate + "' > ~/.imclient/templates/" + imageRADL + ".yaml \n";
-         // Command to create the infrastructure manager client credentials
+        // Command to create the infrastructure manager client credentials
         if (obj.deploymentType == "OpenStack") {
             cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
-            "id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + "; tenant = " + obj.tenant + ";\" > $PWD/" + pipeAuth + " & \n";
+                "id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + "; tenant = " + obj.tenant + ";\" > $PWD/" + pipeAuth + " & \n";
         } else if (obj.deploymentType == "OpenNebula") {
-        cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
-            "id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + ";\" > $PWD/" + pipeAuth + " & \n";
+            cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
+                "id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + ";\" > $PWD/" + pipeAuth + " & \n";
         } else if (obj.deploymentType == "AWS") {
             cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
-            "id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + "; image = " + obj.worker.image + ";\" > $PWD/" + pipeAuth + " & \n";
+                "id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + "; image = " + obj.worker.image + ";\" > $PWD/" + pipeAuth + " & \n";
         }
         // Create final command where the output is stored in "imOut"
         cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " create " + "~/.imclient/templates/" + imageRADL + ".yaml -r https://im.egi.eu/im" + " `\" \n";
         // Remove pipe
-        //cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
+        cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
         // Print im output on stderr or stdout
         cmd += "if [ $? -ne 0 ]; then \n";
         cmd += "    >&2 echo -e $imOut \n";
@@ -914,7 +911,7 @@ define([
                             // If the input doesn't exist, add it dynamically
                             mergedTemplate.topology_template.inputs[inputName] = {
                                 type: 'string',
-                                description: inputName + ' (added dynamically)',
+                                description: inputName,
                                 default: inputValue
                             };
                         }

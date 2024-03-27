@@ -1,8 +1,8 @@
 
 #!/bin/bash
 
-#Create ec3 RADL template file (just in case)
-mkdir -p $HOME/.ec3/templates
+#Create IM Client YAML template file (just in case)
+mkdir -p $HOME/.imclient/templates
 
 #Install and enable plugin content
 if jupyter nbextension install apricot_plugin; then
@@ -20,17 +20,6 @@ if jupyter nbextension enable apricot_plugin/main; then
 else
 
     echo -e "Fail enabling plugin!"
-fi
-
-
-#Install apricot magics (default python)
-if python3 -m pip install --find-links=file:apricot_magic/ apricot_magic/; then
-
-    echo -e "magics succesfuly installed"
-    
-else
-    echo -e "Unable to install apricop magics"
-    exit 3
 fi
 
 #Install apricot magics (python3)

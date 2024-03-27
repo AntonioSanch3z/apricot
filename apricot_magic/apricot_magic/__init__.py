@@ -13,9 +13,12 @@ class Apricot(Magics):
     oneDataHost = ""
     oneDataStore = "/opt/onedata_spaces/"
 
-    #
-    # Auxiliar functions
-    ######################
+    pipeAuth = "auth-pipe"
+    authcmd = f"echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\" > $PWD/{pipeAuth}"
+
+    ########################
+    #  Auxiliar functions  #
+    ########################
     
     def splitClear(self, line, pattern=' '):
 
@@ -49,9 +52,9 @@ class Apricot(Magics):
             value += step
         return "done"
 
-    #
-    # Magics 
-    ######################
+    ##################
+    #     Magics     #
+    ##################
     
     @line_magic
     def apricot_genMPid(self,line):
@@ -340,7 +343,8 @@ class Apricot(Magics):
         
     @line_magic
     def apricot_ls(self, line):
-        pipes = subprocess.Popen(["ec3","list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        pipes = subprocess.Popen(["python3", "/usr/local/bin/im_client.py", "-a", f"$PWD/{pipeAuth}", "list", "-r", "https://im.egi.eu/im"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         std_out, std_err = pipes.communicate()
                     
         std_out = std_out.decode('utf-8')
@@ -666,7 +670,7 @@ class Apricot(Magics):
                 
         elif word1 == "list":
                 
-            pipes = subprocess.Popen(["ec3","list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            pipes = subprocess.Popen(["im_client.py","list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     
             std_out, std_err = pipes.communicate()
             std_out = std_out.decode("utf-8")

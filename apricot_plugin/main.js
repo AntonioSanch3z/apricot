@@ -148,22 +148,6 @@ define([
     //*   Dialogs    *//
     //****************//
 
-    var listClusters = function () {
-        var pipeAuth = deployInfo.infName + "-auth-pipe";
-        var cmd = "%%bash \n";
-        cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
-            "id = " + deployInfo.id + "; type = " + deployInfo.deploymentType + "; host = " + deployInfo.host + "; username = " + deployInfo.user + "; password = " + deployInfo.credential + "; tenant = " + deployInfo.tenant + ";\" > $PWD/" + pipeAuth + " & \n";
-        cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " list -r https://im.egi.eu/im" + " `\" \n";
-
-        // Print IM output on stderr or stdout
-        cmd += "if [ $? -ne 0 ]; then \n";
-        cmd += "    >&2 echo -e $imOut \n";
-        cmd += "    exit 1\n";
-        cmd += "else\n";
-        cmd += "    echo -e $imOut \n";
-        cmd += "fi\n";
-    }
-
     var create_ListDeployments_dialog = function (show) {
 
         //If kernel is not available, call the function again when it is available
@@ -528,14 +512,6 @@ define([
 
         var zone = "us-east-1";
         var ami = "ami-0044130ca185d0880";
-        // if (deployInfo.worker.image.length > 0) {
-        //     var words = deployInfo.worker.image.split('/');
-
-        //     if (words.length >= 4) {
-        //         zone = words[2];
-        //         ami = words[3];
-        //     }
-        // }
 
         //Create availability zone input field
         form.append("Availability zone:<br>");
@@ -772,10 +748,15 @@ define([
         }
         deploying = true;
 
-        // Load and parse the content of simple-node-disk.yaml
+        // Load using AJAX and parse the content of simple-node-disk.yaml
         $.get('templates/simple-node-disk.yaml', async function (content) {
             try {
                 var parsedConstantTemplate = jsyaml.load(content);
+
+                // Add infra_name and a hash to metadata field
+                var hash = await computeHash(JSON.stringify(deployInfo));
+                parsedConstantTemplate.metadata = parsedConstantTemplate.metadata || {};
+                parsedConstantTemplate.metadata.infra_name = "jupyter_" + hash;
 
                 // Populate parsedConstantTemplate with worker values
                 var workerInputs = parsedConstantTemplate.topology_template.inputs;
@@ -800,7 +781,7 @@ define([
                     var yamlContent = jsyaml.dump(resolvedTemplate);
 
                     // Create deploy script
-                    var cmd = deployIMCommand(deployInfo, templatesURL, yamlContent);
+                    var deployCmd = deployIMCommand(deployInfo, templatesURL, yamlContent);
 
                     // Clear dialog
                     deployDialog.empty();
@@ -812,7 +793,7 @@ define([
                     deployDialog.dialog("option", "buttons", {});
 
                     // Create kernel callback
-                    var callbacks = {
+                    var deployCallbacks = {
                         iopub: {
                             output: function (data) {
                                 // Check if the content contains an error
@@ -820,6 +801,7 @@ define([
                                     // Execute the error handling code if "ERROR" is found
                                     deploying = false;
                                     alert(data.content.text);
+                                    console.log(data.content.text);
                                     if (deployInfo.apps.length === 0) {
                                         state_deploy_vmSpec();
                                     } else state_deploy_features();
@@ -827,6 +809,20 @@ define([
                                     var pubtext = data.content.text.replace("\r", "\n");
                                     deploying = false;
                                     alert(pubtext);
+                                    console.log(pubtext);
+
+                                    // Extract ID using regular expression
+                                    var idMatch = pubtext.match(/ID: ([\w-]+)/);
+                                    var randomId = idMatch[1];
+
+                                    // Create a JSON object
+                                    var jsonObj = {
+                                        randomId: randomId
+                                    };
+
+                                    var saveCmd = saveToClusterList(jsonObj);
+                                    Kernel.execute(saveCmd);
+
                                     create_Deploy_dialog();
                                 }
                             }
@@ -835,7 +831,8 @@ define([
 
                     // Deploy using IM
                     var Kernel = Jupyter.notebook.kernel;
-                    Kernel.execute(cmd, callbacks);
+                    Kernel.execute(deployCmd, deployCallbacks);
+
                 });
             } catch (error) {
                 console.error("Error parsing simple-node-disk.yaml:", error);
@@ -883,6 +880,16 @@ define([
         return cmd;
     };
 
+    var saveToClusterList = function (obj) {
+        var filePath = "$PWD/apricot_plugin/clusterList.json";
+        //var filePath = "C:/Users/Antonio/Documents/projects/apricot/apricot_plugin/clusterList.json";
+        var cmd = "%%bash \n";
+        cmd += "echo '" + JSON.stringify(obj) + "' >> " + filePath + "\n";
+        console.log("cmd", cmd);
+        return cmd;
+    };
+    
+    
     async function mergeTOSCARecipes(parsedConstantTemplate, userInputs, nodeTemplates, outputs) {
         try {
             var mergedTemplate = JSON.parse(JSON.stringify(parsedConstantTemplate));
@@ -918,7 +925,7 @@ define([
                     });
                 }
 
-                // Merging nodeTemplates
+                // Merge nodeTemplates
                 if (template && template.nodeTemplates) {
                     template.nodeTemplates.forEach(function (nodeTemplatesObj) {
                         if (nodeTemplatesObj) {
@@ -931,7 +938,7 @@ define([
                     });
                 }
 
-                // Merging outputs
+                // Merge outputs
                 if (template && template.outputs) {
                     Object.values(template.outputs).forEach(function (output) {
                         if (output) {
@@ -950,6 +957,123 @@ define([
             console.error("Error merging TOSCA recipes:", error);
             return JSON.parse(JSON.stringify(parsedConstantTemplate)); // Return a copy of the parsedConstantTemplate
         }
+    }
+
+    async function computeHash(input) {
+        const msgUint8 = new TextEncoder().encode(input);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hashHex;
+    }
+
+    // Function to execute clusterState for each ID and update clusters dictionary
+    var updateClustersState = function () {
+        //var pipeAuth = deployInfo.infName + "-auth-pipe";
+        var Kernel = Jupyter.notebook.kernel;
+        for (var id in clusters) {
+            if (clusters.hasOwnProperty(id)) {
+                //var infrastructureId = clusters[id].id;
+                var clusterStateCmd = clusterState();
+                //var clusterStateCmd = `python3 /usr/local/bin/im_client.py getstate ${infrastructureId} -a $PWD/${pipeAuth} -r https://im.egi.eu/im`;
+                var clusterStateCallback = {
+                    iopub: {
+                        output: function (data) {
+                            console.log("data", data);
+                            var text = data.content.text;
+                            console.log("text", text);
+                            if (text.includes("state:")) {
+                                var state = text.split("state:")[1].trim();
+                                clusters[id].state = state;
+                                console.log("Updated state for " + id + ": " + state);
+                            }
+                        }
+                    }
+                };
+                Kernel.execute(clusterStateCmd, clusterStateCallback);
+            }
+        }
+    };
+
+    // var listClusters = function () {
+    //     var pipeAuth = deployInfo.infName + "-auth-pipe";
+    //     var cmd = "%%bash \n";
+    //     cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n\" > $PWD/" + pipeAuth + " & \n";
+    //     cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " -r https://im.egi.eu/im list `\" \n";
+    //     //filter infra_name 'jupyter_.*'  filter 'metadata: \.infra_name: jupyter_[a-zA-Z0-9_]*'
+
+    //     // Print IM output on stderr or stdout
+    //     cmd += "if [ $? -ne 0 ]; then \n";
+    //     cmd += "    >&2 echo -e $imOut \n";
+    //     cmd += "    exit 1\n";
+    //     cmd += "else\n";
+    //     cmd += "    echo -e $imOut \n";
+    //     cmd += "fi\n";
+    //     return cmd;
+    // }
+
+    var clusterState = function (infID) {
+        var pipeAuth = "auth-pipe";
+        var cmd = "%%bash \n";
+        cmd += "PWD=`pwd` \n";
+        // Remove pipes if exist
+        cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
+        // Create pipes
+        cmd += "mkfifo $PWD/" + pipeAuth + "\n";
+        // Command to create the infrastructure manager client credentials
+        cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\n\" > $PWD/" + pipeAuth + " & \n";
+
+        cmd += "stateOut=\"`python3 /usr/local/bin/im_client.py getstate " + infID + " -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
+
+        cmd += "if [ $? -ne 0 ]; then \n";
+        cmd += "    >&2 echo -e $stateOut \n";
+        cmd += "    exit 1\n";
+        cmd += "else\n";
+        cmd += "    echo -e $stateOut \n";
+        cmd += "fi\n";
+
+        console.log("clusters", clusters);
+
+        // for (var id in clusters) {
+        //     if (clusters.hasOwnProperty(id)) {
+        //         var cluster = clusters[id];
+        //         var infrastructureId = cluster.id;
+
+        //         cmd += "stateOut=$(python3 /usr/local/bin/im_client.py getstate " + infrastructureId + " -a $PWD/" + pipeAuth + ") \n";
+
+        //         cmd += "if [ $? -ne 0 ]; then \n";
+        //         cmd += "    >&2 echo -e $stateOut \n";
+        //         cmd += "    exit 1\n";
+        //         cmd += "else\n";
+        //         cmd += "    echo -e $stateOut \n";
+        //         cmd += "fi\n";
+
+        //         // Store the output of the bash script in cluster.state
+        //         cmd += "echo $stateOut\n";
+        //         cmd += "clusters['" + id + "'].state=$stateOut\n"; // Access clusters directly
+        //     }
+        // }
+
+        // Remove pipe
+        cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
+        console.log("clusters", clusters)
+        return cmd;
+    };
+
+    var listClusters = function () {
+        var pipeAuth = deployInfo.infName + "-auth-pipe";
+        var cmd = "%%bash \n";
+        cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
+            "id = " + deployInfo.id + "; type = " + deployInfo.deploymentType + "; host = " + deployInfo.host + "; username = " + deployInfo.user + "; password = " + deployInfo.credential + "; tenant = " + deployInfo.tenant + ";\" > $PWD/" + pipeAuth + " & \n";
+        cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " list -r https://im.egi.eu/im" + " `\" \n";
+
+        // Print IM output on stderr or stdout
+        cmd += "if [ $? -ne 0 ]; then \n";
+        cmd += "    >&2 echo -e $imOut \n";
+        cmd += "    exit 1\n";
+        cmd += "else\n";
+        cmd += "    echo -e $imOut \n";
+        cmd += "fi\n";
     }
 
     var checkStream = function (data) {

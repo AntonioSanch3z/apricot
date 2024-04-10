@@ -66,44 +66,28 @@ define([
         document.getElementsByTagName("head")[0].appendChild(link);
     }
 
-    var createTable = function (obj) {
-        var keyNames = Object.keys(obj);
-        var nkeys = keyNames.length;
-        var nElements = 0;
-        var table = $('<table width="100%" border="5%">');
-        var row = $("<tr>");
-
-        //Iterate for all object properties and create first row with its names.
-        for (let i = 0; i < nkeys; i++) {
-            var name = keyNames[i];
-            var column = $("<th>").append(name)
-
-            //Append column to row
-            row.append(column);
-            //Check if this property has more elements than previous ones
-            if (nElements < obj[name].length) {
-                nElements = obj[name].length;
-            }
+    var createTable = function (data) {
+        var table = $("<table>").addClass("deployments-table");
+        var headerRow = $("<tr>");
+    
+        // Create table headers based on the keys of the data object
+        for (var key in data) {
+            headerRow.append($("<th>").text(key));
         }
-        //Apend row to table
-        table.append(row);
-
-        //Iterate for properties elements to create all element rows
-        for (let j = 0; j < nElements; j++) {
+        table.append(headerRow);
+    
+        // Iterate over the clusters data and create table rows
+        for (var i = 0; i < data["Name"].length; i++) {
             var row = $("<tr>");
-            for (let i = 0; i < nkeys; i++) {
-                var name = keyNames[i];
-
-                var column = $("<th>").append(obj[name][j])
-
-                //Append column to row
-                row.append(column);
+            for (var key in data) {
+                var cell = $("<td>").text(data[key][i]);
+                row.append(cell);
             }
-            //Append row to table
-            table.append(row)
+            table.append(row);
         }
+    
         return table;
-    }
+    };
 
     //****************//
     //*   Buttons    *//
@@ -149,7 +133,6 @@ define([
     //****************//
 
     var create_ListDeployments_dialog = function (show) {
-
         //If kernel is not available, call the function again when it is available
         if (typeof Jupyter.notebook.kernel == "undefined" || Jupyter.notebook.kernel == null) {
             events.on("kernel_ready.Kernel", function (evt, data) {
@@ -158,69 +141,104 @@ define([
             return;
         }
         console.log("Creating deployments list window");
-
+    
         // Get cluster list 
         var callbacks = {
             iopub: {
                 output: function (data) {
-                    //Check message
-                    var check = checkStream(data)
-                    if (check < 0) return; //Not a stream
-                    if (check > 0) { //Error message
+                    // Check message
+                    var check = checkStream(data);
+                    if (check < 0) return; // Not a stream
+                    if (check > 0) { // Error message
                         alert(data.content.text);
                         return;
                     }
-
-                    //Successfully execution
-                    console.log("Reviced:")
-                    console.log(data.content.text)
-
-                    //Parse data
+    
+                    // Successfully execution
+                    console.log("Received:");
+                    console.log(data.content.text);
+    
+                    // Parse data
                     var words = data.content.text.split(" ");
-                    console.log("words", words)
+                    console.log("words", words);
                     var lists = {};
                     lists["Name"] = [];
+                    lists["ID"] = [];
                     lists["State"] = [];
                     lists["IP"] = [];
-                    lists["Nodes"] = [];
-
-                    for (let i = 5; i < words.length; i += 4) {
-                        lists.Name.push(words[i]);
-                        lists.State.push(words[i + 1]);
-                        lists.IP.push(words[i + 2]);
-                        lists.Nodes.push(words[i + 3]);
-                    }
-
-                    var table = createTable(lists);
-
-                    //Check if dialog has been already created
-                    if ($("#dialog-deployments-list").length == 0) {
-                        var listDeployment_dialog = $('<div id="dialog-deployments-list" title="Deployments list">')
-                            .append(table)
-                        $("body").append(listDeployment_dialog);
-                        $("#dialog-deployments-list").dialog();
-                    } else {
-                        //Clear dialog
-                        $("#dialog-deployments-list").empty();
-
-                        //Append dable
-                        $("#dialog-deployments-list").append(table)
-                        $("#dialog-deployments-list").dialog("open");
-                    }
-                    if (show == false) {
-                        $("#dialog-deployments-list").dialog("close");
-                    }
+    
+                    // Load cluster list from file using AJAX
+                    $.get('apricot_plugin/clusterList.json', function (clusterList) {
+                        // Iterate through each cluster
+                        for (let i = 0; i < clusterList.clusters.length; i++) {
+                            var cluster = clusterList.clusters[i];
+                            lists.Name.push(cluster.name);
+                            lists.ID.push(cluster.id);
+    
+                            // Call clusterState function for each cluster ID
+                            var clusterId = cluster.id;
+                            var stateCmd = clusterState(clusterId);
+                            var stateCallbacks = {
+                                // Callback function to handle state output
+                                iopub: {
+                                    output: function (stateData) {
+                                        var stateCheck = checkStream(stateData);
+                                        if (stateCheck < 0) return; // Not a stream
+                                        if (stateCheck > 0) { // Error message
+                                            alert(stateData.content.text);
+                                            return;
+                                        }
+                                        // Successfully execution
+                                        var stateWords = stateData.content.text.split(" ");
+                                        var stateIndex = stateWords.indexOf("state:");
+                                        if (stateIndex !== -1 && stateIndex < stateWords.length - 1) {
+                                            var state = stateWords[stateIndex + 1].trim(); // Trim to remove extra spaces
+                                            lists.State.push(state);
+    
+                                            // If all states are retrieved, create the table
+                                            if (lists.State.length === clusterList.clusters.length) {
+                                                var table = createTable(lists);
+                                                createOrUpdateDialog(table, show);
+                                            }
+                                        }
+                                    }
+                                }
+                            };
+    
+                            // Execute clusterState command
+                            var Kernel = Jupyter.notebook.kernel;
+                            Kernel.execute(stateCmd, stateCallbacks);
+                        }
+                    });
                 }
             }
         };
-        var cmd = listClusters();
-
-        console.log(cmd);
-        // Deploy using IM
+    
+        var createOrUpdateDialog = function (table, show) {
+            // Check if dialog has been already created
+            if ($("#dialog-deployments-list").length == 0) {
+                var listDeployment_dialog = $('<div id="dialog-deployments-list" title="Deployments list">')
+                    .append(table);
+                $("body").append(listDeployment_dialog);
+                $("#dialog-deployments-list").dialog();
+            } else {
+                // Clear dialog
+                $("#dialog-deployments-list").empty();
+    
+                // Append table
+                $("#dialog-deployments-list").append(table);
+                $("#dialog-deployments-list").dialog("open");
+            }
+            if (show == false) {
+                $("#dialog-deployments-list").dialog("close");
+            }
+        };
+    
+        // Execute command to retrieve cluster list
+        var cmd = "cat apricot_plugin/clusterList.json";
         var Kernel = Jupyter.notebook.kernel;
         Kernel.execute(cmd, callbacks);
-        return cmd;
-    }
+    };
 
     var create_Deploy_dialog = function () {
         console.log("Creating deploy window");
@@ -817,7 +835,8 @@ define([
 
                                     // Create a JSON object
                                     var jsonObj = {
-                                        randomId: randomId
+                                        name: deployInfo.infName,
+                                        id: randomId
                                     };
 
                                     var saveCmd = saveToClusterList(jsonObj);
@@ -881,15 +900,16 @@ define([
     };
 
     var saveToClusterList = function (obj) {
+        // Only works if the { "clusters": [ ] } structure exists in the JSON file
         var filePath = "$PWD/apricot_plugin/clusterList.json";
-        //var filePath = "C:/Users/Antonio/Documents/projects/apricot/apricot_plugin/clusterList.json";
         var cmd = "%%bash \n";
-        cmd += "echo '" + JSON.stringify(obj) + "' >> " + filePath + "\n";
+        cmd += "existingJson=$(cat " + filePath + ")\n"; // Read existing JSON
+        cmd += "newJson=$(echo $existingJson | jq '.clusters += [" + JSON.stringify(obj) + "]')\n"; // Append new object
+        cmd += "echo $newJson > " + filePath + "\n"; // Write updated JSON back to file
         console.log("cmd", cmd);
         return cmd;
     };
-    
-    
+
     async function mergeTOSCARecipes(parsedConstantTemplate, userInputs, nodeTemplates, outputs) {
         try {
             var mergedTemplate = JSON.parse(JSON.stringify(parsedConstantTemplate));
@@ -967,52 +987,7 @@ define([
         return hashHex;
     }
 
-    // Function to execute clusterState for each ID and update clusters dictionary
-    var updateClustersState = function () {
-        //var pipeAuth = deployInfo.infName + "-auth-pipe";
-        var Kernel = Jupyter.notebook.kernel;
-        for (var id in clusters) {
-            if (clusters.hasOwnProperty(id)) {
-                //var infrastructureId = clusters[id].id;
-                var clusterStateCmd = clusterState();
-                //var clusterStateCmd = `python3 /usr/local/bin/im_client.py getstate ${infrastructureId} -a $PWD/${pipeAuth} -r https://im.egi.eu/im`;
-                var clusterStateCallback = {
-                    iopub: {
-                        output: function (data) {
-                            console.log("data", data);
-                            var text = data.content.text;
-                            console.log("text", text);
-                            if (text.includes("state:")) {
-                                var state = text.split("state:")[1].trim();
-                                clusters[id].state = state;
-                                console.log("Updated state for " + id + ": " + state);
-                            }
-                        }
-                    }
-                };
-                Kernel.execute(clusterStateCmd, clusterStateCallback);
-            }
-        }
-    };
-
-    // var listClusters = function () {
-    //     var pipeAuth = deployInfo.infName + "-auth-pipe";
-    //     var cmd = "%%bash \n";
-    //     cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n\" > $PWD/" + pipeAuth + " & \n";
-    //     cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " -r https://im.egi.eu/im list `\" \n";
-    //     //filter infra_name 'jupyter_.*'  filter 'metadata: \.infra_name: jupyter_[a-zA-Z0-9_]*'
-
-    //     // Print IM output on stderr or stdout
-    //     cmd += "if [ $? -ne 0 ]; then \n";
-    //     cmd += "    >&2 echo -e $imOut \n";
-    //     cmd += "    exit 1\n";
-    //     cmd += "else\n";
-    //     cmd += "    echo -e $imOut \n";
-    //     cmd += "fi\n";
-    //     return cmd;
-    // }
-
-    var clusterState = function (infID) {
+    var clusterState = function (clusterId) {
         var pipeAuth = "auth-pipe";
         var cmd = "%%bash \n";
         cmd += "PWD=`pwd` \n";
@@ -1022,59 +997,19 @@ define([
         cmd += "mkfifo $PWD/" + pipeAuth + "\n";
         // Command to create the infrastructure manager client credentials
         cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\n\" > $PWD/" + pipeAuth + " & \n";
-
-        cmd += "stateOut=\"`python3 /usr/local/bin/im_client.py getstate " + infID + " -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
-
+    
+        cmd += "stateOut=\"`python3 /usr/local/bin/im_client.py getstate " + clusterId + " -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
+    
         cmd += "if [ $? -ne 0 ]; then \n";
         cmd += "    >&2 echo -e $stateOut \n";
         cmd += "    exit 1\n";
         cmd += "else\n";
         cmd += "    echo -e $stateOut \n";
         cmd += "fi\n";
-
-        console.log("clusters", clusters);
-
-        // for (var id in clusters) {
-        //     if (clusters.hasOwnProperty(id)) {
-        //         var cluster = clusters[id];
-        //         var infrastructureId = cluster.id;
-
-        //         cmd += "stateOut=$(python3 /usr/local/bin/im_client.py getstate " + infrastructureId + " -a $PWD/" + pipeAuth + ") \n";
-
-        //         cmd += "if [ $? -ne 0 ]; then \n";
-        //         cmd += "    >&2 echo -e $stateOut \n";
-        //         cmd += "    exit 1\n";
-        //         cmd += "else\n";
-        //         cmd += "    echo -e $stateOut \n";
-        //         cmd += "fi\n";
-
-        //         // Store the output of the bash script in cluster.state
-        //         cmd += "echo $stateOut\n";
-        //         cmd += "clusters['" + id + "'].state=$stateOut\n"; // Access clusters directly
-        //     }
-        // }
-
-        // Remove pipe
         cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
-        console.log("clusters", clusters)
+
         return cmd;
     };
-
-    var listClusters = function () {
-        var pipeAuth = deployInfo.infName + "-auth-pipe";
-        var cmd = "%%bash \n";
-        cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
-            "id = " + deployInfo.id + "; type = " + deployInfo.deploymentType + "; host = " + deployInfo.host + "; username = " + deployInfo.user + "; password = " + deployInfo.credential + "; tenant = " + deployInfo.tenant + ";\" > $PWD/" + pipeAuth + " & \n";
-        cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " list -r https://im.egi.eu/im" + " `\" \n";
-
-        // Print IM output on stderr or stdout
-        cmd += "if [ $? -ne 0 ]; then \n";
-        cmd += "    >&2 echo -e $imOut \n";
-        cmd += "    exit 1\n";
-        cmd += "else\n";
-        cmd += "    echo -e $imOut \n";
-        cmd += "fi\n";
-    }
 
     var checkStream = function (data) {
         if (data.msg_type == "stream") {

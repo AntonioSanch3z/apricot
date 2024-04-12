@@ -175,16 +175,17 @@ define([
                             createOrUpdateDialog(table, show);
                             return;
                         }
-                    
-                        // Counter to keep track of completed state retrievals
+    
+                        // Counter to keep track of completed state and IP retrievals
                         var completedStates = 0;
-                    
+                        var completedIPs = 0;
+    
                         // Iterate through each cluster
                         for (let i = 0; i < clusterList.clusters.length; i++) {
                             var cluster = clusterList.clusters[i];
                             lists.Name.push(cluster.name);
                             lists.ID.push(cluster.clusterId);
-                    
+    
                             // Call clusterState function for each cluster
                             var stateCmd = clusterState(cluster);
                             console.log("stateCmd", stateCmd);
@@ -193,23 +194,27 @@ define([
                                 iopub: {
                                     output: function (stateData) {
                                         var stateCheck = checkStream(stateData);
+                                        console.log("stateCheck", stateCheck);
                                         if (stateCheck < 0) return; // Not a stream
-                                        if (stateCheck > 0) { // Error message
+                                        if (stateCheck > 0) { // Error message or contains "error"  || stateData.content.text.toLowerCase().includes("error")
+                                            // If it does, display the entire output as an error message
                                             alert(stateData.content.text);
                                             return;
                                         }
                                         // Successfully execution
                                         var stateWords = stateData.content.text.split(" ");
+                                        console.log("stateWords", stateWords);
                                         var stateIndex = stateWords.indexOf("state:");
+                                        console.log("stateIndex", stateIndex);
                                         if (stateIndex !== -1 && stateIndex < stateWords.length - 1) {
                                             var state = stateWords[stateIndex + 1].trim(); // Trim to remove extra spaces
                                             lists.State.push(state);
-                    
+                            
                                             // Increment completed states count
                                             completedStates++;
-                    
+                            
                                             // If all states are retrieved, create the table
-                                            if (completedStates === clusterList.clusters.length) {
+                                            if (completedStates === clusterList.clusters.length && completedIPs === clusterList.clusters.length) {
                                                 var table = createTable(lists);
                                                 createOrUpdateDialog(table, show);
                                             }
@@ -217,16 +222,60 @@ define([
                                     }
                                 }
                             };
-                    
+                            
+    
                             // Execute clusterState command
                             var Kernel = Jupyter.notebook.kernel;
                             Kernel.execute(stateCmd, stateCallbacks);
+                        }
+    
+                        // Call clusterIP function for each cluster
+                        for (let i = 0; i < clusterList.clusters.length; i++) {
+                            var clusterId = clusterList.clusters[i].clusterId;
+                            var ipCmd = clusterIP(clusterId);
+                            console.log("ipCmd", ipCmd);
+                            var ipCallbacks = {
+                                // Callback function to handle IP output
+                                iopub: {
+                                    output: function (ipData) {
+                                        var ipCheck = checkStream(ipData);
+                                        if (ipCheck < 0) return; // Not a stream
+                                        if (ipCheck > 0) { // Error message
+                                            alert(ipData.content.text);
+                                            return;
+                                        }
+                                        // Successfully execution
+                                        var ip = ipData.content.text.trim(); // Trim to remove extra spaces
+
+                                        // Check if the output starts with "Secure"
+                                    if (! ip.toLowerCase().includes("error")) {
+                                        // If it does, extract the IP from the output
+                                        ip = ip.split(" ").pop(); // Get the last word
+                                    }
+
+                                    // Append IP to the lists
+                                    lists.IP.push(ip);
+    
+                                        // Increment completed IPs count
+                                        completedIPs++;
+    
+                                        // If all IPs are retrieved, create the table
+                                        if (completedStates === clusterList.clusters.length && completedIPs === clusterList.clusters.length) {
+                                            var table = createTable(lists);
+                                            createOrUpdateDialog(table, show);
+                                        }
+                                    }
+                                }
+                            };
+    
+                            // Execute clusterIP command
+                            Kernel.execute(ipCmd, ipCallbacks);
                         }
                     });                    
                 }
             }
         };
-    
+
         var createOrUpdateDialog = function (table, show) {
             // Check if dialog has been already created
             if ($("#dialog-deployments-list").length == 0) {
@@ -882,45 +931,6 @@ define([
         });
     };
 
-    var fetchClusterIPs = function(clusterList, callback) {
-        var clusters = clusterList.clusters;
-        var processedClusters = 0;
-    
-        // Iterate through each cluster
-        clusters.forEach(function(cluster, index) {
-            var clusterId = cluster.clusterId;
-            var ipCmd = clusterIP(clusterId);
-    
-            var ipCallbacks = {
-                // Callback function to handle IP output
-                iopub: {
-                    output: function(data) {
-                        var ipCheck = checkStream(data);
-                        if (ipCheck < 0) return; // Not a stream
-                        if (ipCheck > 0) { // Error message
-                            alert(data.content.text);
-                            return;
-                        }
-                        // Successfully execution
-                        var ip = data.content.text.trim(); // Trim to remove extra spaces
-                        clusterList.clusters[index].ip = ip;
-    
-                        processedClusters++;
-                        if (processedClusters === clusters.length) {
-                            // All clusters processed, invoke the callback
-                            callback(clusterList);
-                        }
-                    }
-                }
-            };
-    
-            // Execute clusterIP command
-            var Kernel = Jupyter.notebook.kernel;
-            Kernel.execute(ipCmd, ipCallbacks);
-        });
-    };
-    
-
     var deployIMCommand = function (obj, templateURL, mergedTemplate) {
         var pipeAuth = obj.infName + "-auth-pipe";
         var imageRADL = obj.infName;
@@ -936,7 +946,7 @@ define([
         cmd += "echo '" + mergedTemplate + "' > ~/.imclient/templates/" + imageRADL + ".yaml \n";
         // Command to create the infrastructure manager client credentials
         if (obj.deploymentType == "OpenStack") {
-            cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
+            cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\n" +
                 "id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + "; tenant = " + obj.tenant + ";\" > $PWD/" + pipeAuth + " & \n";
         } else if (obj.deploymentType == "OpenNebula") {
             cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass \n" +
@@ -1049,30 +1059,6 @@ define([
         return hashHex;
     }
 
-    // var clusterState = function (clusterId) {
-    //     var pipeAuth = "auth-pipe";
-    //     var cmd = "%%bash \n";
-    //     cmd += "PWD=`pwd` \n";
-    //     // Remove pipes if exist
-    //     cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
-    //     // Create pipes
-    //     cmd += "mkfifo $PWD/" + pipeAuth + "\n";
-    //     // Command to create the infrastructure manager client credentials
-    //     cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\n";
-
-    //     cmd += "stateOut=\"`python3 /usr/local/bin/im_client.py getstate " + clusterId + " -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
-    
-    //     cmd += "if [ $? -ne 0 ]; then \n";
-    //     cmd += "    >&2 echo -e $stateOut \n";
-    //     cmd += "    exit 1\n";
-    //     cmd += "else\n";
-    //     cmd += "    echo -e $stateOut \n";
-    //     cmd += "fi\n";
-    //     cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
-
-    //     return cmd;
-    // };
-
     var clusterState = function (cluster) {
         var clusterId = cluster.clusterId;
         var id = cluster.providerId;
@@ -1117,7 +1103,6 @@ define([
         return cmd;
     };
 
-    
     var clusterIP = function (clusterId) {
         var pipeAuth = "auth-pipe";
         var cmd = "%%bash \n";
@@ -1127,18 +1112,19 @@ define([
         // Create pipes
         cmd += "mkfifo $PWD/" + pipeAuth + "\n";
         // Command to create the infrastructure manager client credentials
-        cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\n\> $PWD/" + pipeAuth + " & \n";
-    
-        cmd += "stateOut=\"`python3 /usr/local/bin/im_client.py getvminfo " + clusterId + " 0 net_interface.1.ip -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
-    
+        cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\" > $PWD/" + pipeAuth + " & \n";
+
+        cmd += "ipOut=\"`python3 /usr/local/bin/im_client.py getvminfo " + clusterId + " 0 net_interface.1.ip -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
+
         cmd += "if [ $? -ne 0 ]; then \n";
-        cmd += "    >&2 echo -e $stateOut \n";
+        cmd += "    >&2 echo -e $ipOut \n";
         cmd += "    exit 1\n";
         cmd += "else\n";
-        cmd += "    echo -e $stateOut \n";
+        cmd += "    echo -e $ipOut \n";
         cmd += "fi\n";
         cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
 
+        console.log('cmdIP', cmd);
         return cmd;
     };
 

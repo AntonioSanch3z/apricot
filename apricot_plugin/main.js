@@ -164,20 +164,30 @@ define([
                     var lists = {};
                     lists["Name"] = [];
                     lists["ID"] = [];
-                    lists["State"] = [];
                     lists["IP"] = [];
+                    lists["State"] = [];
     
                     // Load cluster list from file using AJAX
                     $.get('apricot_plugin/clusterList.json', function (clusterList) {
+                        if (clusterList.clusters.length === 0) {
+                            // If cluster list is empty, create an empty table
+                            var table = createTable(lists);
+                            createOrUpdateDialog(table, show);
+                            return;
+                        }
+                    
+                        // Counter to keep track of completed state retrievals
+                        var completedStates = 0;
+                    
                         // Iterate through each cluster
                         for (let i = 0; i < clusterList.clusters.length; i++) {
                             var cluster = clusterList.clusters[i];
                             lists.Name.push(cluster.name);
-                            lists.ID.push(cluster.id);
-    
-                            // Call clusterState function for each cluster ID
-                            var clusterId = cluster.id;
-                            var stateCmd = clusterState(clusterId);
+                            lists.ID.push(cluster.clusterId);
+                    
+                            // Call clusterState function for each cluster
+                            var stateCmd = clusterState(cluster);
+                            console.log("stateCmd", stateCmd);
                             var stateCallbacks = {
                                 // Callback function to handle state output
                                 iopub: {
@@ -194,9 +204,12 @@ define([
                                         if (stateIndex !== -1 && stateIndex < stateWords.length - 1) {
                                             var state = stateWords[stateIndex + 1].trim(); // Trim to remove extra spaces
                                             lists.State.push(state);
-    
+                    
+                                            // Increment completed states count
+                                            completedStates++;
+                    
                                             // If all states are retrieved, create the table
-                                            if (lists.State.length === clusterList.clusters.length) {
+                                            if (completedStates === clusterList.clusters.length) {
                                                 var table = createTable(lists);
                                                 createOrUpdateDialog(table, show);
                                             }
@@ -204,12 +217,12 @@ define([
                                     }
                                 }
                             };
-    
+                    
                             // Execute clusterState command
                             var Kernel = Jupyter.notebook.kernel;
                             Kernel.execute(stateCmd, stateCallbacks);
                         }
-                    });
+                    });                    
                 }
             }
         };
@@ -831,12 +844,22 @@ define([
 
                                     // Extract ID using regular expression
                                     var idMatch = pubtext.match(/ID: ([\w-]+)/);
-                                    var randomId = idMatch[1];
+                                    var clusterId = idMatch[1];
 
                                     // Create a JSON object
                                     var jsonObj = {
                                         name: deployInfo.infName,
-                                        id: randomId
+                                        clusterId: clusterId,
+                                        id: deployInfo.id,
+                                        type: deployInfo.deploymentType,
+                                        host: deployInfo.host,
+                                        tenant: deployInfo.tenant,
+                                        user: deployInfo.user,
+                                        pass: deployInfo.credential,
+                                        tenant: deployInfo.tenant,
+                                        // domain: deployInfo.domain,
+                                        // authVersion: deployInfo.authVersion,
+                                        // api_version: deployInfo.apiVersion,
                                     };
 
                                     var saveCmd = saveToClusterList(jsonObj);
@@ -858,6 +881,45 @@ define([
             }
         });
     };
+
+    var fetchClusterIPs = function(clusterList, callback) {
+        var clusters = clusterList.clusters;
+        var processedClusters = 0;
+    
+        // Iterate through each cluster
+        clusters.forEach(function(cluster, index) {
+            var clusterId = cluster.clusterId;
+            var ipCmd = clusterIP(clusterId);
+    
+            var ipCallbacks = {
+                // Callback function to handle IP output
+                iopub: {
+                    output: function(data) {
+                        var ipCheck = checkStream(data);
+                        if (ipCheck < 0) return; // Not a stream
+                        if (ipCheck > 0) { // Error message
+                            alert(data.content.text);
+                            return;
+                        }
+                        // Successfully execution
+                        var ip = data.content.text.trim(); // Trim to remove extra spaces
+                        clusterList.clusters[index].ip = ip;
+    
+                        processedClusters++;
+                        if (processedClusters === clusters.length) {
+                            // All clusters processed, invoke the callback
+                            callback(clusterList);
+                        }
+                    }
+                }
+            };
+    
+            // Execute clusterIP command
+            var Kernel = Jupyter.notebook.kernel;
+            Kernel.execute(ipCmd, ipCallbacks);
+        });
+    };
+    
 
     var deployIMCommand = function (obj, templateURL, mergedTemplate) {
         var pipeAuth = obj.infName + "-auth-pipe";
@@ -987,7 +1049,42 @@ define([
         return hashHex;
     }
 
-    var clusterState = function (clusterId) {
+    // var clusterState = function (clusterId) {
+    //     var pipeAuth = "auth-pipe";
+    //     var cmd = "%%bash \n";
+    //     cmd += "PWD=`pwd` \n";
+    //     // Remove pipes if exist
+    //     cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
+    //     // Create pipes
+    //     cmd += "mkfifo $PWD/" + pipeAuth + "\n";
+    //     // Command to create the infrastructure manager client credentials
+    //     cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\n";
+
+    //     cmd += "stateOut=\"`python3 /usr/local/bin/im_client.py getstate " + clusterId + " -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
+    
+    //     cmd += "if [ $? -ne 0 ]; then \n";
+    //     cmd += "    >&2 echo -e $stateOut \n";
+    //     cmd += "    exit 1\n";
+    //     cmd += "else\n";
+    //     cmd += "    echo -e $stateOut \n";
+    //     cmd += "fi\n";
+    //     cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
+
+    //     return cmd;
+    // };
+
+    var clusterState = function (cluster) {
+        var clusterId = cluster.clusterId;
+        var id = cluster.providerId;
+        var type = cluster.type;
+        var host = cluster.host;
+        var user = cluster.user;
+        var pass = cluster.pass;
+        var tenant = cluster.tenant;
+        // var domain = cluster.domain;
+        // var authVersion = cluster.auth_version;
+        // var api_version = cluster.api_version;
+
         var pipeAuth = "auth-pipe";
         var cmd = "%%bash \n";
         cmd += "PWD=`pwd` \n";
@@ -996,9 +1093,43 @@ define([
         // Create pipes
         cmd += "mkfifo $PWD/" + pipeAuth + "\n";
         // Command to create the infrastructure manager client credentials
-        cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\n\" > $PWD/" + pipeAuth + " & \n";
-    
+        cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\n";
+        
+        // Additional credentials based on deploymentType
+        if (type === "OpenStack") {
+            cmd += "id = " + id + "; type = " + type + "; host = " + host + "; username = " + user + "; password = " + pass + "; tenant = " + tenant + ";\" > $PWD/" + pipeAuth + " & \n";
+        } else if (type === "OpenNebula") {
+            cmd += "id = " + id + "; type = " + type + "; host = " + host + "; username = " + user + "; password = " + pass + ";\" > $PWD/" + pipeAuth + " & \n";
+        } else if (type === "AWS") {
+            cmd += "id = " + id + "; type = " + type + "; host = " + host + "; username = " + user + "; password = " + pass + ";\" > $PWD/" + pipeAuth + " & \n";
+        }
         cmd += "stateOut=\"`python3 /usr/local/bin/im_client.py getstate " + clusterId + " -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
+    
+        cmd += "if [ $? -ne 0 ]; then \n";
+        cmd += "    >&2 echo -e $stateOut \n";
+        cmd += "    exit 1\n";
+        cmd += "else\n";
+        cmd += "    echo -e $stateOut \n";
+        cmd += "fi\n";
+        cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
+
+        console.log('cmd', cmd);
+        return cmd;
+    };
+
+    
+    var clusterIP = function (clusterId) {
+        var pipeAuth = "auth-pipe";
+        var cmd = "%%bash \n";
+        cmd += "PWD=`pwd` \n";
+        // Remove pipes if exist
+        cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
+        // Create pipes
+        cmd += "mkfifo $PWD/" + pipeAuth + "\n";
+        // Command to create the infrastructure manager client credentials
+        cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\n\> $PWD/" + pipeAuth + " & \n";
+    
+        cmd += "stateOut=\"`python3 /usr/local/bin/im_client.py getvminfo " + clusterId + " 0 net_interface.1.ip -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
     
         cmd += "if [ $? -ne 0 ]; then \n";
         cmd += "    >&2 echo -e $stateOut \n";

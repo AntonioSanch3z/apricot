@@ -4,6 +4,8 @@ from IPython.core.magic import (Magics, magics_class, line_magic,
                                 cell_magic, line_cell_magic)
 import os, glob
 import subprocess
+import json
+from tabulate import tabulate
 
 @magics_class
 class Apricot(Magics):
@@ -12,9 +14,6 @@ class Apricot(Magics):
     oneDataToken = ""
     oneDataHost = ""
     oneDataStore = "/opt/onedata_spaces/"
-
-    pipeAuth = "auth-pipe"
-    authcmd = f"echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\" > $PWD/{pipeAuth}"
 
     ########################
     #  Auxiliar functions  #
@@ -344,7 +343,7 @@ class Apricot(Magics):
     @line_magic
     def apricot_ls(self, line):
 
-        pipes = subprocess.Popen(["python3", "/usr/local/bin/im_client.py", "-a", f"$PWD/{pipeAuth}", "list", "-r", "https://im.egi.eu/im"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        pipes = subprocess.Popen(["ec3","list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         std_out, std_err = pipes.communicate()
                     
         std_out = std_out.decode('utf-8')
@@ -362,6 +361,106 @@ class Apricot(Magics):
             ret += std_out
             print(ret)
             return
+      
+    @line_magic
+    def apricottable(self, line):
+        # Read the JSON data from the file
+        with open('apricot_plugin/clusterList.json') as f:
+            data = json.load(f)
+
+        # Initialize clusters list
+        clusters = []
+
+        # Iterate through each cluster
+        for cluster in data['clusters']:
+            cluster_info = {
+                'Name': cluster['name'],
+                'Cluster ID': cluster['clusterId'],
+                'IP': "",
+                'State': ""
+            }
+
+            # Construct auth-pipe content based on cluster type
+            auth_content = f"type = InfrastructureManager; username = user; password = pass;\n"
+
+            # Construct additional credentials based on cluster type
+            if cluster['type'] == "OpenStack":
+                auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}; tenant = {cluster['tenant']}"
+            elif cluster['type'] == "OpenNebula":
+                auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}"
+            elif cluster['type'] == "AWS":
+                auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}"
+
+            # Write auth-pipe content to a file
+            with open('auth-pipe', 'w') as auth_file:
+                auth_file.write(auth_content)
+
+            # Call im_client.py to get state
+            cmdState = [
+                'python3',
+                '/usr/local/bin/im_client.py',
+                'getstate',
+                cluster['clusterId'],
+                '-r',
+                'https://im.egi.eu/im',
+                '-a',
+                'auth-pipe',
+            ]
+
+            # Execute command and capture output
+            try:
+                state_output = subprocess.check_output(cmdState, universal_newlines=True)
+                # Process state output to extract state information
+                state_words = state_output.split()
+                state_index = state_words.index("state:") if "state:" in state_words else -1
+                if state_index != -1 and state_index < len(state_words) - 1:
+                    state = state_words[state_index + 1].strip()
+                    cluster_info['State'] = state
+                else:
+                    cluster_info['State'] = "Error: State not found"
+            except subprocess.CalledProcessError as e:
+                cluster_info['State'] = f"Error: {e.output.strip()}"
+
+            # Call im_client.py to get vm info
+            cmdIP = [
+                'python3',
+                '/usr/local/bin/im_client.py',
+                'getvminfo',
+                cluster['clusterId'],
+                '0',
+                'net_interface.1.ip',
+                '-r',
+                'https://im.egi.eu/im',
+                '-a',
+                'auth-pipe',
+            ]
+
+            # Execute command and capture output
+            try:
+                ip_output = subprocess.check_output(cmdIP, universal_newlines=True)
+                # Process output to extract IP information
+                # Check if the output contains an error message
+                if "error" in ip_output.lower():
+                    ip = "Error: " + ip_output.strip()
+                else:
+                    # Extract IP address from the output
+                    ip = ip_output.split()[-1].strip()
+                cluster_info['IP'] = ip
+            except subprocess.CalledProcessError as e:
+                cluster_info['IP'] = f"Error: {e.output.strip()}"
+
+            clusters.append(cluster_info)
+
+        # Convert clusters to a list of lists for tabulate
+        cluster_data = [[cluster['Name'], cluster['Cluster ID'], cluster['IP'], cluster['State']] for cluster in clusters]
+
+        # Print the information as a table using tabulate
+        print(tabulate(cluster_data, headers=['Name', 'Cluster ID', 'IP', 'State'], tablefmt='grid'))
+        
+        # Clean up auth-pipe file after processing
+        
+        subprocess.run(['rm', 'auth-pipe'])
+        return
 
     @line_magic
     def apricot_nodels(self, line):

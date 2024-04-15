@@ -141,7 +141,7 @@ define([
             return;
         }
         console.log("Creating deployments list window");
-    
+
         // Get cluster list 
         var callbacks = {
             iopub: {
@@ -153,11 +153,11 @@ define([
                         alert(data.content.text);
                         return;
                     }
-    
+
                     // Successfully execution
                     console.log("Received:");
                     console.log(data.content.text);
-    
+
                     // Parse data
                     var words = data.content.text.split(" ");
                     console.log("words", words);
@@ -166,7 +166,7 @@ define([
                     lists["ID"] = [];
                     lists["IP"] = [];
                     lists["State"] = [];
-    
+
                     // Load cluster list from file using AJAX
                     $.get('apricot_plugin/clusterList.json', function (clusterList) {
                         if (clusterList.clusters.length === 0) {
@@ -175,17 +175,18 @@ define([
                             createOrUpdateDialog(table, show);
                             return;
                         }
-    
+
                         // Counter to keep track of completed state and IP retrievals
                         var completedStates = 0;
                         var completedIPs = 0;
-    
+
                         // Iterate through each cluster
                         for (let i = 0; i < clusterList.clusters.length; i++) {
                             var cluster = clusterList.clusters[i];
+                            //var clusterState = clusterList.clusters[i].clusterState;
                             lists.Name.push(cluster.name);
                             lists.ID.push(cluster.clusterId);
-    
+
                             // Call clusterState function for each cluster
                             var stateCmd = clusterState(cluster);
                             console.log("stateCmd", stateCmd);
@@ -196,10 +197,10 @@ define([
                                         var stateCheck = checkStream(stateData);
                                         console.log("stateCheck", stateCheck);
                                         if (stateCheck < 0) return; // Not a stream
-                                        if (stateCheck > 0) { // Error message or contains "error"  || stateData.content.text.toLowerCase().includes("error")
+                                        if (stateCheck > 0) { // Error message or contains "error"
                                             // If it does, display the entire output as an error message
-                                            alert(stateData.content.text);
-                                            return;
+                                            lists.State.push(stateData.content.text);
+                                            // return;
                                         }
                                         // Successfully execution
                                         var stateWords = stateData.content.text.split(" ");
@@ -209,10 +210,10 @@ define([
                                         if (stateIndex !== -1 && stateIndex < stateWords.length - 1) {
                                             var state = stateWords[stateIndex + 1].trim(); // Trim to remove extra spaces
                                             lists.State.push(state);
-                            
+
                                             // Increment completed states count
                                             completedStates++;
-                            
+
                                             // If all states are retrieved, create the table
                                             if (completedStates === clusterList.clusters.length && completedIPs === clusterList.clusters.length) {
                                                 var table = createTable(lists);
@@ -222,13 +223,13 @@ define([
                                     }
                                 }
                             };
-                            
-    
+
+
                             // Execute clusterState command
                             var Kernel = Jupyter.notebook.kernel;
                             Kernel.execute(stateCmd, stateCallbacks);
                         }
-    
+
                         // Call clusterIP function for each cluster
                         for (let i = 0; i < clusterList.clusters.length; i++) {
                             var clusterId = clusterList.clusters[i].clusterId;
@@ -241,24 +242,24 @@ define([
                                         var ipCheck = checkStream(ipData);
                                         if (ipCheck < 0) return; // Not a stream
                                         if (ipCheck > 0) { // Error message
-                                            alert(ipData.content.text);
+                                            lists.IP.push(ipData.content.text);
                                             return;
                                         }
                                         // Successfully execution
                                         var ip = ipData.content.text.trim(); // Trim to remove extra spaces
 
                                         // Check if the output starts with "Secure"
-                                    if (! ip.toLowerCase().includes("error")) {
-                                        // If it does, extract the IP from the output
-                                        ip = ip.split(" ").pop(); // Get the last word
-                                    }
+                                        if (!ip.toLowerCase().includes("error")) {
+                                            // If it does, extract the IP from the output
+                                            ip = ip.split(" ").pop(); // Get the last word
+                                        }
 
-                                    // Append IP to the lists
-                                    lists.IP.push(ip);
-    
+                                        // Append IP to the lists
+                                        lists.IP.push(ip);
+
                                         // Increment completed IPs count
                                         completedIPs++;
-    
+
                                         // If all IPs are retrieved, create the table
                                         if (completedStates === clusterList.clusters.length && completedIPs === clusterList.clusters.length) {
                                             var table = createTable(lists);
@@ -267,11 +268,11 @@ define([
                                     }
                                 }
                             };
-    
+
                             // Execute clusterIP command
                             Kernel.execute(ipCmd, ipCallbacks);
                         }
-                    });                    
+                    });
                 }
             }
         };
@@ -286,7 +287,7 @@ define([
             } else {
                 // Clear dialog
                 $("#dialog-deployments-list").empty();
-    
+
                 // Append table
                 $("#dialog-deployments-list").append(table);
                 $("#dialog-deployments-list").dialog("open");
@@ -295,7 +296,7 @@ define([
                 $("#dialog-deployments-list").dialog("close");
             }
         };
-    
+
         // Execute command to retrieve cluster list
         var cmd = "cat apricot_plugin/clusterList.json";
         var Kernel = Jupyter.notebook.kernel;

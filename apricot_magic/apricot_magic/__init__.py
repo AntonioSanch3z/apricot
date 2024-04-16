@@ -101,8 +101,8 @@ class Apricot(Magics):
         
         return runID
 
-    @line_magic
-    def apricot_log(self, line):
+    # @line_magic
+    # def apricot_log(self, line):
         if len(line) == 0:
             print("usage: apricot_log clustername\n")
             return "fail"
@@ -123,7 +123,55 @@ class Apricot(Magics):
         print(log)
 
         return "done"
-        
+    
+    @line_magic
+    def apricot_logup(self, line):
+        if len(line) == 0:
+            print("Usage: apricot_log infID\n")
+            return "Fail"
+
+        # Split line
+        words = self.splitClear(line)
+
+        # Get cluster ID
+        infID = words[0]
+
+        # Read the JSON data from the file
+        with open('apricot_plugin/clusterList.json') as f:
+            data = json.load(f)
+
+        # Find the cluster with the specified ID
+        cluster = next((c for c in data['clusters'] if c['clusterId'] == infID), None)
+
+        if cluster is None:
+            print(f"Cluster with ID {infID} not found.")
+            return "fail"
+
+        # Construct auth-pipe content based on cluster type
+        auth_content = f"type = InfrastructureManager; username = user; password = pass;\n"
+
+        # Construct additional credentials based on cluster type
+        if cluster['type'] == "OpenStack":
+            auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}; tenant = {cluster['tenant']}"
+        elif cluster['type'] == "OpenNebula":
+            auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}"
+        elif cluster['type'] == "AWS":
+            auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}"
+
+        # Write auth-pipe content to a file
+        with open('auth-pipe', 'w') as auth_file:
+            auth_file.write(auth_content)
+
+        # Call im_client.py to get log
+        pipes = subprocess.Popen(["python3", "/usr/local/bin/im_client.py", "getcontmsg", "-a", "auth-pipe", "-r", "https://im.egi.eu/im", infID], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        log, std_err = pipes.communicate()
+        log = log.decode('utf-8')
+        std_err = std_err.decode('utf-8')
+
+        print(log)
+
+        return "done"
 
     @line_magic
     def apricot_onedata(self,line):
@@ -215,8 +263,7 @@ class Apricot(Magics):
         else:
             print("Unknown instruction")
             return "fail"
-            
-            
+    
     @line_magic
     def apricot_MPI(self,line):
 
@@ -340,8 +387,8 @@ class Apricot(Magics):
 
         return self.multiparametricRun(execPath, clusterName, "slurm", script, rangesData, nRanges-1)
         
-    @line_magic
-    def apricot_ls(self, line):
+    # @line_magic
+    # def apricot_ls(self, line):
 
         pipes = subprocess.Popen(["ec3","list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         std_out, std_err = pipes.communicate()
@@ -363,7 +410,7 @@ class Apricot(Magics):
             return
       
     @line_magic
-    def apricottable(self, line):
+    def apricot_ls(self, line):
         # Read the JSON data from the file
         with open('apricot_plugin/clusterList.json') as f:
             data = json.load(f)

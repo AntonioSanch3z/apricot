@@ -209,17 +209,6 @@ class Apricot(Magics):
         subprocess.run(['rm', 'auth-pipe'])
         return
 
-    # @line_magic
-    # def apricot_nodels(self, line):
-        if len(line) == 0:
-            print("Usage: nodels cluster-id")
-            return "Fail"
-        #Get cluster name
-        clusterId = self.splitClear(line)[0]
-
-        #send instruction
-        return self.apricot("exec " + clusterId + " clues status")
-    
     @line_magic
     def apricot_nodels(self, line):
         if len(line) == 0:

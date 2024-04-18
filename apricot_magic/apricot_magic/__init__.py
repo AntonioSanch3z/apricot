@@ -54,78 +54,9 @@ class Apricot(Magics):
     ##################
     #     Magics     #
     ##################
-    
+
     @line_magic
-    def apricot_genMPid(self,line):
-        
-        if len(line) == 0:
-            print("usage: genMPid range1 range2...\n")
-            print("range format is as follows: lowest highest step")
-            return "fail"
-        #Split line
-        words = self.splitClear(line)
-        rangesData = [float(i) for i in words]
-
-        #Check if last range is incomplete
-        if len(rangesData) % 3 != 0:
-            print("Last specified range is incomplete. Check ranges.")
-            return "fail"        
-
-        nRanges = int(len(rangesData)/3)
-
-        if nRanges <= 0:
-            print("Any range specified\n")
-            print("range format is as follows: lowest highest step")
-            return "fail"
-
-        #Check ranges and create a identificator
-        errText = ""
-        runID = ""
-        errors = False
-        for i in list(range(0,nRanges)):
-            index = i*3
-            if rangesData[index] > rangesData[index+1]:
-                errors = True
-                errText += "fail in range " + str(i) + ". Upbownd value (" + str(rangesData[index+1]) + ") is smaller than lower limit (" + str(rangesData[index]) + ").\n"
-            if rangesData[index+2] <= 0.0:
-                errors = True
-                errText += "fail in range " + str(i) + ". Step size value (" + str(rangesData[index+2]) + ") must be positive.\n"
-
-            #Append range to identifier
-            if i > 0:
-                runID += "_"
-            runID += str(rangesData[index]) + "to" + str(rangesData[index+1]) + "by" + str(rangesData[index+2])
-                
-        if errors is True:
-            print(errText)
-        
-        return runID
-
-    # @line_magic
-    # def apricot_log(self, line):
-        if len(line) == 0:
-            print("usage: apricot_log clustername\n")
-            return "fail"
-
-        #Split line
-        words = self.splitClear(line)
-
-        #Get cluster name
-        clusterName = words[0]
-
-        #Get log
-        pipes = subprocess.Popen(["ec3","show","-r",clusterName], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        
-        log, std_err = pipes.communicate()
-        log = log.decode('utf-8')
-        std_err = std_err.decode('utf-8')
-
-        print(log)
-
-        return "done"
-    
-    @line_magic
-    def apricot_logup(self, line):
+    def apricot_log(self, line):
         if len(line) == 0:
             print("Usage: apricot_log infID\n")
             return "Fail"
@@ -141,22 +72,26 @@ class Apricot(Magics):
             data = json.load(f)
 
         # Find the cluster with the specified ID
-        cluster = next((c for c in data['clusters'] if c['clusterId'] == infID), None)
+        found_cluster = None
+        for cluster in data['clusters']:
+            if cluster['clusterId'] == infID:
+                found_cluster = cluster
+                break
 
-        if cluster is None:
+        if found_cluster is None:
             print(f"Cluster with ID {infID} not found.")
-            return "fail"
+            return "Fail"
 
         # Construct auth-pipe content based on cluster type
         auth_content = f"type = InfrastructureManager; username = user; password = pass;\n"
 
         # Construct additional credentials based on cluster type
-        if cluster['type'] == "OpenStack":
-            auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}; tenant = {cluster['tenant']}"
-        elif cluster['type'] == "OpenNebula":
-            auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}"
-        elif cluster['type'] == "AWS":
-            auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}"
+        if found_cluster['type'] == "OpenStack":
+            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}; tenant = {found_cluster['tenant']}"
+        elif found_cluster['type'] == "OpenNebula":
+            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}"
+        elif found_cluster['type'] == "AWS":
+            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}"
 
         # Write auth-pipe content to a file
         with open('auth-pipe', 'w') as auth_file:
@@ -171,7 +106,222 @@ class Apricot(Magics):
 
         print(log)
 
-        return "done"
+        return
+    
+    @line_magic
+    def apricot_ls(self, line):
+        # Read the JSON data from the file
+        with open('apricot_plugin/clusterList.json') as f:
+            data = json.load(f)
+
+        # Initialize clusters list
+        clusters = []
+
+        # Iterate through each cluster
+        for cluster in data['clusters']:
+            cluster_info = {
+                'Name': cluster['name'],
+                'Cluster ID': cluster['clusterId'],
+                'IP': "",
+                'State': ""
+            }
+
+            # Construct auth-pipe content based on cluster type
+            auth_content = f"type = InfrastructureManager; username = user; password = pass;\n"
+
+            # Construct additional credentials based on cluster type
+            if cluster['type'] == "OpenStack":
+                auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}; tenant = {cluster['tenant']}"
+            elif cluster['type'] == "OpenNebula":
+                auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}"
+            elif cluster['type'] == "AWS":
+                auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}"
+
+            # Write auth-pipe content to a file
+            with open('auth-pipe', 'w') as auth_file:
+                auth_file.write(auth_content)
+
+            # Call im_client.py to get state
+            cmdState = [
+                'python3',
+                '/usr/local/bin/im_client.py',
+                'getstate',
+                cluster['clusterId'],
+                '-r',
+                'https://im.egi.eu/im',
+                '-a',
+                'auth-pipe',
+            ]
+
+            # Execute command and capture output
+            try:
+                state_output = subprocess.check_output(cmdState, universal_newlines=True)
+                # Process state output to extract state information
+                state_words = state_output.split()
+                state_index = state_words.index("state:") if "state:" in state_words else -1
+                if state_index != -1 and state_index < len(state_words) - 1:
+                    state = state_words[state_index + 1].strip()
+                    cluster_info['State'] = state
+                else:
+                    cluster_info['State'] = "Error: State not found"
+            except subprocess.CalledProcessError as e:
+                cluster_info['State'] = f"Error: {e.output.strip()}"
+
+            # Call im_client.py to get vm info
+            cmdIP = [
+                'python3',
+                '/usr/local/bin/im_client.py',
+                'getvminfo',
+                cluster['clusterId'],
+                '0',
+                'net_interface.1.ip',
+                '-r',
+                'https://im.egi.eu/im',
+                '-a',
+                'auth-pipe',
+            ]
+
+
+            # Execute command and capture output
+            try:
+                ip_output = subprocess.check_output(cmdIP, universal_newlines=True)
+                # Process output to extract IP information
+                # Check if the output contains an error message
+                if "error" in ip_output.lower():
+                    ip = "Error: " + ip_output.strip()
+                else:
+                    # Extract IP address from the output
+                    ip = ip_output.split()[-1].strip()
+                cluster_info['IP'] = ip
+            except subprocess.CalledProcessError as e:
+                cluster_info['IP'] = f"Error: {e.output.strip()}"
+
+            clusters.append(cluster_info)
+
+        # Convert clusters to a list of lists for tabulate
+        cluster_data = [[cluster['Name'], cluster['Cluster ID'], cluster['IP'], cluster['State']] for cluster in clusters]
+
+        # Print the information as a table using tabulate
+        print(tabulate(cluster_data, headers=['Name', 'Cluster ID', 'IP', 'State'], tablefmt='grid'))
+        
+        # Clean up auth-pipe file after processing
+        
+        subprocess.run(['rm', 'auth-pipe'])
+        return
+
+    # @line_magic
+    # def apricot_nodels(self, line):
+        if len(line) == 0:
+            print("Usage: nodels cluster-id")
+            return "Fail"
+        #Get cluster name
+        clusterId = self.splitClear(line)[0]
+
+        #send instruction
+        return self.apricot("exec " + clusterId + " clues status")
+    
+    @line_magic
+    def apricot_nodels(self, line):
+        if len(line) == 0:
+            print("Usage: apricot_log infID\n")
+            return "Fail"
+
+        # Split line
+        words = self.splitClear(line)
+
+        # Get cluster ID
+        infID = words[0]
+
+        # Read the JSON data from the file
+        with open('apricot_plugin/clusterList.json') as f:
+            data = json.load(f)
+
+        # Find the cluster with the specified ID
+        found_cluster = None
+        for cluster in data['clusters']:
+            if cluster['clusterId'] == infID:
+                found_cluster = cluster
+                break
+
+        if found_cluster is None:
+            print(f"Cluster with ID {infID} not found.")
+            return "Fail"
+
+        # Construct auth-pipe content based on cluster type
+        auth_content = f"type = InfrastructureManager; username = user; password = pass;\n"
+
+        # Construct additional credentials based on cluster type
+        if found_cluster['type'] == "OpenStack":
+            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}; tenant = {found_cluster['tenant']}"
+        elif found_cluster['type'] == "OpenNebula":
+            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}"
+        elif found_cluster['type'] == "AWS":
+            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}"
+
+        # Write auth-pipe content to a file
+        with open('auth-pipe', 'w') as auth_file:
+            auth_file.write(auth_content)
+
+        # Call im_client.py to get state
+        cmd = [
+            'python3',
+            '/usr/local/bin/im_client.py',
+            'getinfo',
+            infID,
+            '-r',
+            'https://im.egi.eu/im',
+            '-a',
+            'auth-pipe',
+        ]
+
+        # Initialize a list to store VM information
+        vm_info_list = []
+
+        current_vm_id, ip_address, status, provider_type, os_image = None, None, None, None, None
+        
+        # Execute command and capture output
+        state_output = subprocess.check_output(cmd, universal_newlines=True)
+
+        # Split the output by lines
+        state_lines = state_output.split('\n')
+
+        try:
+            for line in state_lines:
+                if all((current_vm_id, ip_address, status, provider_type, os_image)):
+                    vm_info_list.append([current_vm_id, ip_address, status, provider_type, os_image])
+                    current_vm_id, ip_address, status, provider_type, os_image = None, None, None, None, None
+                else:
+                    if line.startswith("Info about VM with ID:"):
+                        # Extract the VM ID
+                        current_vm_id = line.split(":")[1].strip()
+                    # Check if the line contains information about the IP address
+                    if line.strip().startswith("net_interface.1.ip ="):
+                        # Extract the IP address
+                        ip_address = line.split("'")[1].strip()
+                    # Check if the line contains information about the status
+                    if line.strip().startswith("state ="):
+                        # Extract the status without unwanted characters
+                        status = line.split("'")[1].strip()
+                    # Check if the line contains information about the provider type
+                    if line.strip().startswith("provider.type ="):
+                        # Extract the provider type without unwanted characters
+                        provider_type = line.split("'")[1].strip()
+                    # Check if the line contains information about the OS image
+                    if line.strip().startswith("disk.0.image.url ="):
+                        # Extract the OS image without unwanted characters
+                        os_image = line.split("'")[1].strip()
+            if all((current_vm_id, ip_address, status, provider_type, os_image)):
+                vm_info_list.append([current_vm_id, ip_address, status, provider_type, os_image])
+
+        except subprocess.CalledProcessError as e:
+            print(f"Error: {e.output.strip()}")
+
+        # Print the information as a table using tabulate
+        print(tabulate(vm_info_list, headers=['VM ID', 'IP Address', 'Status', 'Provider', 'OS Image'], tablefmt='grid'))
+        
+        # Clean up auth-pipe file after processing
+        subprocess.run(['rm', 'auth-pipe'])
+        return
 
     @line_magic
     def apricot_onedata(self,line):
@@ -263,7 +413,23 @@ class Apricot(Magics):
         else:
             print("Unknown instruction")
             return "fail"
+
+    @line_magic
+    def apricot_runOn(self, line):
+        if len(line) == 0:
+            return "fail"
+        words = self.splitClear(line)
+        if len(words) < 3:
+            print("usage: apricot_runOnAll clustername node-list command")
+            return "fail"
+            
+        #Get cluster name
+        clusterName = words[0]
+        nodeList = words[1]
+        command = ' '.join(words[2:])
     
+        return self.apricot("exec " + clusterName + " srun -w " + nodeList + " " + command)
+
     @line_magic
     def apricot_MPI(self,line):
 
@@ -310,232 +476,7 @@ class Apricot(Magics):
         if self.apricot(command) != "done":
             return "fail"        
         return "done"
-
-    @line_magic
-    def apricot_runMP(self,line):
-
-        if len(line) == 0:
-            print("usage: runMP clustername script execution-path range1 range2...\n")
-            print("range format is as follows: lowest highest step")
-            return "fail"
-
-        #Split line
-        words = self.splitClear(line)
-
-        if len(words) < 4:
-            print("usage: runMP clustername script execution-path range1 range2...\n")
-            print("range format is as follows: lowest highest step")
-            return "fail"
-
-        #Get cluster name
-        clusterName = words[0]
-
-        #Get script name
-        filename = words[1]
-
-        #Get execution path
-        execPath = words[2]        
-        
-        #Extract ranges data
-        rangesDataString = words[3:]
-        rangesData = [float(i) for i in rangesDataString]
-        
-        #Check if last range is incomplete
-        if len(rangesData) % 3 != 0:
-            print("Last specified range is incomplete. Check ranges.")
-            return "fail"
-        
-        nRanges = int(len(rangesData)/3)
-
-        if nRanges <= 0:
-            print("Any range specified\n")
-            print("range format is as follows: lowest highest step")
-            return "fail"
-        
-        #Check ranges and create a identificator
-        errText = ""
-        runID = ""
-        errors = False
-        for i in list(range(0,nRanges)):
-            index = i*3
-            if rangesData[index] > rangesData[index+1]:
-                errors = True
-                errText += "fail in range " + str(i) + ". Upbownd value (" + str(rangesData[index+1]) + ") is smaller than lower limit (" + str(rangesData[index]) + ").\n"
-            if rangesData[index+2] <= 0.0:
-                errors = True
-                errText += "fail in range " + str(i) + ". Step size value (" + str(rangesData[index+2]) + ") must be positive.\n"
-
-            #Append range to identifier
-            if i > 0:
-                runID += "_"
-            runID += str(rangesData[index]) + "to" + str(rangesData[index+1]) + "by" + str(rangesData[index+2])
-                
-        if errors is True:
-            print(errText)
-            return "fail"
-                
-        #Get script
-        fileScript = open(filename,"r")
-        script = fileScript.read()
-        fileScript.close()
-
-        #Replace run ID
-        script = script.replace("__RUN_ID__",runID)
-
-        # Add EOF at the beggining to introduce the script in command line
-        script = "EOF \n" + script + "\nEOF\n"
-
-        return self.multiparametricRun(execPath, clusterName, "slurm", script, rangesData, nRanges-1)
-        
-    # @line_magic
-    # def apricot_ls(self, line):
-
-        pipes = subprocess.Popen(["ec3","list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        std_out, std_err = pipes.communicate()
-                    
-        std_out = std_out.decode('utf-8')
-        std_err = std_err.decode('utf-8')
-          
-        if pipes.returncode == 0:
-            #Send output to notebook
-            print(std_out)
-            return 
-                
-        else:
-            #Send error to notebook
-            ret = "Status: Fail " + str(pipes.returncode) + "\n"
-            ret += std_err + "\n"
-            ret += std_out
-            print(ret)
-            return
-      
-    @line_magic
-    def apricot_ls(self, line):
-        # Read the JSON data from the file
-        with open('apricot_plugin/clusterList.json') as f:
-            data = json.load(f)
-
-        # Initialize clusters list
-        clusters = []
-
-        # Iterate through each cluster
-        for cluster in data['clusters']:
-            cluster_info = {
-                'Name': cluster['name'],
-                'Cluster ID': cluster['clusterId'],
-                'IP': "",
-                'State': ""
-            }
-
-            # Construct auth-pipe content based on cluster type
-            auth_content = f"type = InfrastructureManager; username = user; password = pass;\n"
-
-            # Construct additional credentials based on cluster type
-            if cluster['type'] == "OpenStack":
-                auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}; tenant = {cluster['tenant']}"
-            elif cluster['type'] == "OpenNebula":
-                auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}"
-            elif cluster['type'] == "AWS":
-                auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}"
-
-            # Write auth-pipe content to a file
-            with open('auth-pipe', 'w') as auth_file:
-                auth_file.write(auth_content)
-
-            # Call im_client.py to get state
-            cmdState = [
-                'python3',
-                '/usr/local/bin/im_client.py',
-                'getstate',
-                cluster['clusterId'],
-                '-r',
-                'https://im.egi.eu/im',
-                '-a',
-                'auth-pipe',
-            ]
-
-            # Execute command and capture output
-            try:
-                state_output = subprocess.check_output(cmdState, universal_newlines=True)
-                # Process state output to extract state information
-                state_words = state_output.split()
-                state_index = state_words.index("state:") if "state:" in state_words else -1
-                if state_index != -1 and state_index < len(state_words) - 1:
-                    state = state_words[state_index + 1].strip()
-                    cluster_info['State'] = state
-                else:
-                    cluster_info['State'] = "Error: State not found"
-            except subprocess.CalledProcessError as e:
-                cluster_info['State'] = f"Error: {e.output.strip()}"
-
-            # Call im_client.py to get vm info
-            cmdIP = [
-                'python3',
-                '/usr/local/bin/im_client.py',
-                'getvminfo',
-                cluster['clusterId'],
-                '0',
-                'net_interface.1.ip',
-                '-r',
-                'https://im.egi.eu/im',
-                '-a',
-                'auth-pipe',
-            ]
-
-            # Execute command and capture output
-            try:
-                ip_output = subprocess.check_output(cmdIP, universal_newlines=True)
-                # Process output to extract IP information
-                # Check if the output contains an error message
-                if "error" in ip_output.lower():
-                    ip = "Error: " + ip_output.strip()
-                else:
-                    # Extract IP address from the output
-                    ip = ip_output.split()[-1].strip()
-                cluster_info['IP'] = ip
-            except subprocess.CalledProcessError as e:
-                cluster_info['IP'] = f"Error: {e.output.strip()}"
-
-            clusters.append(cluster_info)
-
-        # Convert clusters to a list of lists for tabulate
-        cluster_data = [[cluster['Name'], cluster['Cluster ID'], cluster['IP'], cluster['State']] for cluster in clusters]
-
-        # Print the information as a table using tabulate
-        print(tabulate(cluster_data, headers=['Name', 'Cluster ID', 'IP', 'State'], tablefmt='grid'))
-        
-        # Clean up auth-pipe file after processing
-        
-        subprocess.run(['rm', 'auth-pipe'])
-        return
-
-    @line_magic
-    def apricot_nodels(self, line):
-        if len(line) == 0:
-            print("usage: nodels clustername")
-            return "fail"
-        #Get cluster name
-        clusterName = self.splitClear(line)[0]
-
-        #send instruction
-        return self.apricot("exec " + clusterName + " clues status")
-
-    @line_magic
-    def apricot_runOn(self, line):
-        if len(line) == 0:
-            return "fail"
-        words = self.splitClear(line)
-        if len(words) < 3:
-            print("usage: apricot_runOnAll clustername node-list command")
-            return "fail"
-            
-        #Get cluster name
-        clusterName = words[0]
-        nodeList = words[1]
-        command = ' '.join(words[2:])
-    
-        return self.apricot("exec " + clusterName + " srun -w " + nodeList + " " + command)
-
+   
     @line_magic
     def apricot_upload(self, line):
         if len(line) == 0:
@@ -749,13 +690,13 @@ class Apricot(Magics):
             lines = self.splitClear(cell,'\n')
             for line in lines:
                 if len(line) > 0:
-                    if self.apricot(line, None) != "done":
+                    if self.apricot(line, None) != "Done":
                         print("Execution stopped")
-                        return ("fail on line: '" + line + "'")
-            return "done"
+                        return ("Fail on line: '" + line + "'")
+            return "Done"
 
         if len(code) == 0:
-            return "fail"
+            return "Fail"
         words = self.splitClear(code)
         #Get first word
         word1 = words[0]
@@ -767,16 +708,16 @@ class Apricot(Magics):
                 
             if len(words) < 3:
                 print("Incomplete instruction: " + "'" + code + "' \n 'exec' format is: 'exec cluster-name instruction'" )
-                return "fail"
+                return "Fail"
             else:
                 #Get cluster name
-                clusterName = words[1]
+                clusterId = words[1]
                 
                 #Get command to execute at cluster
                 clusterCMD = words[2:]
                 
                 #Get ssh instruction to execute on cluster
-                pipes = subprocess.Popen(["ec3","ssh","--show-only", clusterName], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                pipes = subprocess.Popen(["ec3","ssh","--show-only", clusterId], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                         
                 ssh_instruct, std_err = pipes.communicate()                
                 ssh_instruct = ssh_instruct.decode("utf-8")
@@ -803,20 +744,20 @@ class Apricot(Magics):
                         print( std_out )
                     else:
                         #Send error and output to notebook
-                        print( "Status: Fail " + str(pipes.returncode) + "\n")
+                        print( "Status: fail " + str(pipes.returncode) + "\n")
                         print( std_err + "\n")
                         print( std_out )
-                        return "fail"
+                        return "Fail"
                 else:
                     #Send error to notebook
-                    print( "Status: Fail " + str(pipes.returncode) + "\n")
+                    print( "Status: fail " + str(pipes.returncode) + "\n")
                     print( std_err + "\n" + ssh_instruct)
-                    print( "\nCheck if cluster name '" + clusterName + "' exists\n" )
-                    return "fail"
+                    print( "\nCheck if cluster name '" + clusterId + "' exists\n" )
+                    return "Fail"
                 
         elif word1 == "list":
                 
-            pipes = subprocess.Popen(["im_client.py","list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            pipes = subprocess.Popen(["ec3","list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     
             std_out, std_err = pipes.communicate()
             std_out = std_out.decode("utf-8")
@@ -828,15 +769,15 @@ class Apricot(Magics):
                 
             else:
                 #Send error to notebook
-                print( "Status: Fail " + str(pipes.returncode) + "\n")
+                print( "Status: fail " + str(pipes.returncode) + "\n")
                 print( std_err )
                 return "fail"                
         elif word1 == "destroy":
                 
             if len(userCMD) == 0:
                 #Send error to notebook
-                print( "cluster name missing\n usage: destroy clustername" )
-                return "fail"
+                print( "Cluster name missing\n Usage: destroy clusterId" )
+                return "Fail"
             else:
                 destroyCMD = ["ec3","destroy","-y"]
                 destroyCMD.extend(self.splitClear(userCMD))
@@ -852,16 +793,16 @@ class Apricot(Magics):
                 
                 else:
                     #Send error to notebook
-                    print( "Status: Fail " + str(pipes.returncode) + "\n")
+                    print( "Status: fail " + str(pipes.returncode) + "\n")
                     print( std_err )
                     print( std_out )
-                    return "fail"                
+                    return "Fail"                
         else:
             #Unknown command
             print("Unknown command")
-            return "fail"
+            return "Fail"
         
-        return "done"
+        return "Done"
 
 
 def load_ipython_extension(ipython):

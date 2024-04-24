@@ -26,31 +26,6 @@ class Apricot(Magics):
 
         return list(filter(len,line.split(pattern)))
 
-    def multiparametricRun(self, execPath, clustername, queue, script, ranges, rangeID):
-
-        if queue != "slurm":
-            return "fail: only slurm queue system is allowed"
-        
-        index = int(rangeID)*3
-        low = float(ranges[index])
-        top = float(ranges[index+1])
-        step = float(ranges[index+2])
-
-        value = low
-        identifier = "__" + str(rangeID) + "__"
-        while(value <= top):
-            localScript = script.replace(identifier,str(value))
-            if(rangeID == 0):
-                #print(localScript)
-                command = "exec " + clustername + " cd " + execPath + " && sbatch << " + localScript
-                if self.apricot(command) != "done":
-                    return "fail"
-                
-            else:
-                self.multiparametricRun(execPath, clustername, queue, localScript, ranges, rangeID-1)
-            value += step
-        return "done"
-
     ##################
     #     Magics     #
     ##################
@@ -279,26 +254,19 @@ class Apricot(Magics):
                 if all((current_vm_id, ip_address, status, provider_type, os_image)):
                     vm_info_list.append([current_vm_id, ip_address, status, provider_type, os_image])
                     current_vm_id, ip_address, status, provider_type, os_image = None, None, None, None, None
+                
                 else:
                     if line.startswith("Info about VM with ID:"):
-                        # Extract the VM ID
                         current_vm_id = line.split(":")[1].strip()
-                    # Check if the line contains information about the IP address
                     if line.strip().startswith("net_interface.1.ip ="):
-                        # Extract the IP address
                         ip_address = line.split("'")[1].strip()
-                    # Check if the line contains information about the status
                     if line.strip().startswith("state ="):
-                        # Extract the status without unwanted characters
                         status = line.split("'")[1].strip()
-                    # Check if the line contains information about the provider type
                     if line.strip().startswith("provider.type ="):
-                        # Extract the provider type without unwanted characters
                         provider_type = line.split("'")[1].strip()
-                    # Check if the line contains information about the OS image
                     if line.strip().startswith("disk.0.image.url ="):
-                        # Extract the OS image without unwanted characters
                         os_image = line.split("'")[1].strip()
+
             if all((current_vm_id, ip_address, status, provider_type, os_image)):
                 vm_info_list.append([current_vm_id, ip_address, status, provider_type, os_image])
 
@@ -580,96 +548,118 @@ class Apricot(Magics):
     @line_magic
     def apricot_download(self, line):
         if len(line) == 0:
-            print("usage: download clustername file1 file2 ... fileN destination-path\n")
+            print("usage: download clusterId file1 file2 ... fileN destination-path\n")
             return "fail"
         words = self.splitClear(line)
         if len(words) < 3:
-            print("usage: download clustername file1 file2 ... fileN destination-path\n")
+            print("usage: download clusterId file1 file2 ... fileN destination-path\n")
             return "fail"
 
-        #Get cluster name
-        clusterName = words[0]
+        #Get cluster id
+        clusterId = words[0]
         destination = words[len(words)-1]
-        #Remove destination from words
-        del words[len(words)-1]
+        files = words[1:-1]
+
+        # Read the JSON data from the file
+        with open('apricot_plugin/clusterList.json') as f:
+            data = json.load(f)
+
+        # Find the cluster with the specified ID
+        found_cluster = None
+        for cluster in data['clusters']:
+            if cluster['clusterId'] == clusterId:
+                found_cluster = cluster
+                break
+
+        if found_cluster is None:
+            print(f"Cluster with ID {clusterId} not found.")
+            return "Fail"
+
+        # Construct auth-pipe content based on cluster type
+        auth_content = f"type = InfrastructureManager; username = user; password = pass;\n"
+
+        # Construct additional credentials based on cluster type
+        if found_cluster['type'] == "OpenStack":
+            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}; tenant = {found_cluster['tenant']}"
+        elif found_cluster['type'] == "OpenNebula":
+            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}"
+        elif found_cluster['type'] == "AWS":
+            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}"
+
+        # Write auth-pipe content to a file
+        with open('auth-pipe', 'w') as auth_file:
+            auth_file.write(auth_content)
+
+        # Call im_client.py to get state
+        cmd = [
+            'python3',
+            '/usr/local/bin/im_client.py',
+            'getinfo',
+            clusterId,
+            '-r',
+            'https://im.egi.eu/im',
+            '-a',
+            'auth-pipe',
+        ]
         
-        #Get ssh instruction
-        pipes = subprocess.Popen(["ec3","ssh","--show-only",clusterName], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # Execute command and capture output
+        state_output = subprocess.check_output(cmd, universal_newlines=True)
         
-        ssh_instruct, std_err = pipes.communicate()
-        ssh_instruct = ssh_instruct.decode("utf-8")
-        std_err = std_err.decode("utf-8")
-    
-        if pipes.returncode == 0:        
-            #Replace ssh by scp
-            ssh_instruct = self.splitClear(ssh_instruct,'\n')[0]
-            ssh_instruct = self.splitClear(ssh_instruct)
+        # Split the output by lines
+        state_lines = state_output.split('\n')
+
+        # Initialize a variable to store the private key content and host IP
+        private_key_content = None
+        hostIP = None
+
+        # Iterate over each line in the output
+        private_key_started = False
+        # Iterate over each line in the output
+        for line in state_lines:
+            # Check if the line contains the private key information
+            if line.strip().startswith("disk.0.os.credentials.private_key ="):
+                private_key_started = True
+                private_key_content = line.split(" = ")[1].strip().strip("'") + '\n'
+                continue
+
+            # If private key capture has started, capture lines until END RSA PRIVATE KEY
+            if private_key_started:
+                private_key_content += line + '\n'
+
+            # Check if the line contains the end of the private key
+            if "END RSA PRIVATE KEY" in line:
+                private_key_started = False
+                print(private_key_content)
             
-            #Create empty array for scp instruction
-            scp_instruct = []
-            #Find user@host field
-            skip = False
-            host = ""
-            for word in ssh_instruct:
+            if line.strip().startswith("net_interface.1.ip ="):
+                # Extract the host IP
+                hostIP = line.split("'")[1].strip()
+                print(hostIP)
+                break
 
-                if skip:
-                    scp_instruct.append(word)
-                    skip = False
-                    continue
-                
-                if word == "sshpass":
-                    scp_instruct.append(word)
-                    continue
-                if word == "ssh":
-                    scp_instruct.append("scp")
-                    scp_instruct.append("-r")                    
-                    continue
+        # Check if private key content is found
+        if private_key_content:
+            # Write private key content to a file named key.pem
+            with open("key.pem", "w") as key_file:
+                key_file.write(private_key_content)
+            
+            # Change permissions of key.pem to 600
+            os.chmod("key.pem", 0o600)
 
-                if word == "-p":
-                    scp_instruct.append("-P")
-                    skip = True
-                    continue
-                
-                if word[0] == '-':
-                    #is an option
-                    scp_instruct.append(word)
-                    if len(word) == 2:
-                        skip = True
-                    continue
+        # Initialize the SCP command
+        cmd2 = ['scp', '-i', 'key.pem']
 
-                #This field contain user@host
-                #Store it
-                host = word
-                
-            #Append files to download and destination
-            for filename in words[1:]:
-                
-                #Check if actual dir must be added to filename
-                if len(self.actualDir) > 0 and filename[0] != '/':
-                    filename = self.actualDir + "/" + filename
+        # Add each file to the SCP command
+        for file in files:
+            cmd2.extend(['root@' + hostIP + ':' + file])
 
-                scp_instruct.append(host + ":" + filename)
+        # Add the destination path to the SCP command
+        cmd2.append(destination)
 
-            #Append destination on local machine
-            scp_instruct.append(destination)
+        # Execute SCP command
+        subprocess.run(cmd2)
 
-            #Execute scp
-            pipes = subprocess.Popen(scp_instruct, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-            std_out, std_err = pipes.communicate()
-            std_out = std_out.decode("utf-8")
-            std_err = std_err.decode("utf-8")
-                    
-            if pipes.returncode == 0:
-                #Send output to notebook
-                print( std_out )
-                return "done"
-                
-            else:
-                #Send error to notebook
-                print( "Status: Fail " + str(pipes.returncode) + "\n")
-                print( std_err )
-                return "fail"                
+        return            
             
     @line_cell_magic
     def apricot(self, code, cell=None):

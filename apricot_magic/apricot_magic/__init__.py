@@ -251,115 +251,115 @@ class Apricot(Magics):
         
         return
 
-    @line_magic
-    def apricot_onedata(self,line):
-        if len(line) == 0:
-            print("usage: apricot_onedata clustername instruction parameters...\n")
-            print("Valid instructions are: mount, umount, download, upload, set-token, get-token, set-host, get-host")
-            return "fail"
+    # @line_magic
+    # def apricot_onedata(self,line):
+    #     if len(line) == 0:
+    #         print("usage: apricot_onedata clustername instruction parameters...\n")
+    #         print("Valid instructions are: mount, umount, download, upload, set-token, get-token, set-host, get-host")
+    #         return "fail"
 
-        #Split line
-        words = self.splitClear(line)
-        if len(words) < 2:
-            print("usage: apricot_onedata clustername instruction parameters...\n")
-            print("Valid instructions are: mount, umount, download, upload, set-token, get-token, set-host, get-host")
-            return "fail"
+    #     #Split line
+    #     words = self.splitClear(line)
+    #     if len(words) < 2:
+    #         print("usage: apricot_onedata clustername instruction parameters...\n")
+    #         print("Valid instructions are: mount, umount, download, upload, set-token, get-token, set-host, get-host")
+    #         return "fail"
 
-        #Get cluster name
-        clusterName = words[0]
+    #     #Get cluster name
+    #     clusterName = words[0]
 
-        #Get instruction
-        instruction = words[1]
+    #     #Get instruction
+    #     instruction = words[1]
 
-        if instruction == "set-token":
-            if len(words) < 3:
-                print("No token specified")
-                return "fail"
-            oneDataToken = words[3]
-        elif instruction == "get-token":
-            return oneDataToken
-        elif instruction == "set-host":
-            if len(words) < 3:
-                print("No host specified")
-                return "fail"
-            oneDataHost = words[3]
-        elif instruction == "get-host":
-            return oneDataHost
-        elif instruction == "mount":
+    #     if instruction == "set-token":
+    #         if len(words) < 3:
+    #             print("No token specified")
+    #             return "fail"
+    #         oneDataToken = words[3]
+    #     elif instruction == "get-token":
+    #         return oneDataToken
+    #     elif instruction == "set-host":
+    #         if len(words) < 3:
+    #             print("No host specified")
+    #             return "fail"
+    #         oneDataHost = words[3]
+    #     elif instruction == "get-host":
+    #         return oneDataHost
+    #     elif instruction == "mount":
 
-            if len(words) < 3:
-                print("No mount point specified")
-                return "fail"
+    #         if len(words) < 3:
+    #             print("No mount point specified")
+    #             return "fail"
 
-            #Create directory to mount specified space
-            if words[2][0] == '/':
-                mountPoint = words[2]                
-            else:
-                mountPoint = self.oneDataStore + words[2]
+    #         #Create directory to mount specified space
+    #         if words[2][0] == '/':
+    #             mountPoint = words[2]                
+    #         else:
+    #             mountPoint = self.oneDataStore + words[2]
 
-            self.apricot("exec " + clusterName + " rm -r " + mountPoint + "&> /dev/null")
-            status = self.apricot("exec " + clusterName + " mkdir " + mountPoint)
-            if status != "done":
-                print("Unable to create directory: " + mountPoint)
-                return "fail"
+    #         self.apricot("exec " + clusterName + " rm -r " + mountPoint + "&> /dev/null")
+    #         status = self.apricot("exec " + clusterName + " mkdir " + mountPoint)
+    #         if status != "done":
+    #             print("Unable to create directory: " + mountPoint)
+    #             return "fail"
                 
             
-            if len(words) < 4:
-                return self.apricot("exec " + clusterName + " oneclient -H " + oneDataHost + " -t " + oneDataToken + " " + mountPoint)
-            if len(words) < 5:
-                return self.apricot("exec " + clusterName + " oneclient -H " + words[3] + " -t " + oneDataToken + " " + mountPoint)
-            else:
-                return self.apricot("exec " + clusterName + " oneclient -H " + words[3] + " -t " + words[4] + " " + mountPoint)
+    #         if len(words) < 4:
+    #             return self.apricot("exec " + clusterName + " oneclient -H " + oneDataHost + " -t " + oneDataToken + " " + mountPoint)
+    #         if len(words) < 5:
+    #             return self.apricot("exec " + clusterName + " oneclient -H " + words[3] + " -t " + oneDataToken + " " + mountPoint)
+    #         else:
+    #             return self.apricot("exec " + clusterName + " oneclient -H " + words[3] + " -t " + words[4] + " " + mountPoint)
 
-        elif instruction == "umount":
-            if len(words) < 3:
-                print("No mount point specified")
-                return "fail"
-            return self.apricot("exec " + clusterName + " oneclient -u " + words[2])
+    #     elif instruction == "umount":
+    #         if len(words) < 3:
+    #             print("No mount point specified")
+    #             return "fail"
+    #         return self.apricot("exec " + clusterName + " oneclient -u " + words[2])
 
-        elif instruction == "download" or instruction == "upload":
-            if len(words) < 4:
-                print("usage: apricot_onedata clusterName cp onedataPath localPath")
-                return "fail"
+    #     elif instruction == "download" or instruction == "upload":
+    #         if len(words) < 4:
+    #             print("usage: apricot_onedata clusterName cp onedataPath localPath")
+    #             return "fail"
 
             
-            if instruction == "download":
-                origin = self.oneDataStore + words[2]
-                destin = words[3]
-            else:
-                origin = words[2]
-                destin = self.oneDataStore + words[3]
+    #         if instruction == "download":
+    #             origin = self.oneDataStore + words[2]
+    #             destin = words[3]
+    #         else:
+    #             origin = words[2]
+    #             destin = self.oneDataStore + words[3]
                 
-            #Try to copy file from/to already mounted space
-            status = self.apricot("exec " + clusterName + " cp " + origin + " " + destin)
+    #         #Try to copy file from/to already mounted space
+    #         status = self.apricot("exec " + clusterName + " cp " + origin + " " + destin)
 
-            if status != "done":
-                return "fail"                
-            else:
-                return "done"
+    #         if status != "done":
+    #             return "fail"                
+    #         else:
+    #             return "done"
         
-        else:
-            print("Unknown instruction")
-            return "fail"
+    #     else:
+    #         print("Unknown instruction")
+    #         return "fail"
 
-    @line_magic
-    def apricot_runOn(self, line):
-        if len(line) == 0:
-            return "fail"
-        words = self.splitClear(line)
-        if len(words) < 3:
-            print("usage: apricot_runOnAll clustername node-list command")
-            return "fail"
+    # @line_magic
+    # def apricot_runOn(self, line):
+    #     if len(line) == 0:
+    #         return "fail"
+    #     words = self.splitClear(line)
+    #     if len(words) < 3:
+    #         print("usage: apricot_runOnAll clustername node-list command")
+    #         return "fail"
             
-        #Get cluster name
-        clusterName = words[0]
-        nodeList = words[1]
-        command = ' '.join(words[2:])
+    #     #Get cluster name
+    #     clusterName = words[0]
+    #     nodeList = words[1]
+    #     command = ' '.join(words[2:])
     
-        return self.apricot("exec " + clusterName + " srun -w " + nodeList + " " + command)
+    #     return self.apricot("exec " + clusterName + " srun -w " + nodeList + " " + command)
 
-    @line_magic
-    def apricot_MPI(self,line):
+    # @line_magic
+    # def apricot_MPI(self,line):
 
         if len(line) == 0:
             print("usage: apricot_MPI clustername node_number tasks_number remote/path/to/execute romete/path/to/executable arguments")
@@ -408,122 +408,101 @@ class Apricot(Magics):
     @line_magic
     def apricot_upload(self, line):
         if len(line) == 0:
-            print("usage: upload clustername file1 file2 ... fileN destination-path\n")
+            print("usage: upload clusterId file1 file2 ... fileN remote-destination-path\n")
             return "fail"
         words = self.splitClear(line)
         if len(words) < 3:
-            print("usage: upload clustername file1 file2 ... fileN destination-path\n")
+            print("usage: upload clusterId file1 file2 ... fileN remote-destination-path\n")
             return "fail"
 
-        #Get cluster name
-        clusterName = words[0]
-        destination = words[len(words)-1]
-        #Remove destination from words
-        del words[len(words)-1]
+        # Get cluster id
+        clusterId = words[0]
+        destination = words[len(words) - 1]
+        files = words[1:-1]
 
-        #Add actual directory to destination if required
-        if len(destination) == 0:
-            if len(self.actualDir) > 0:
-                destination = self.actualDir + "/"
-        else:
-            if len(self.actualDir) > 0 and destination[0] != '/':
-                destination = self.actualDir + "/" + destination
-        
-        nWordsInit = len(words)
-        i = 0
-        while i < nWordsInit:
-            if '*' in words[i]:
-                
-                fileList = glob.glob(words[i])
-                if len(fileList) > 0:
-                    words.extend(fileList)
-                else:
-                    print("No file found with the pattern: '" + words[i] + "'")
-                #Remove pattern element
-                del words[i]
-                i = i-1
-                nWordsInit = nWordsInit-1
-            i = i+1
-            
-        #Get ssh instruction
-        pipes = subprocess.Popen(["ec3","ssh","--show-only",clusterName], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        
-        ssh_instruct, std_err = pipes.communicate()
+        # Call createAuthPipe function
+        self.createAuthPipe(clusterId)
 
-        ssh_instruct = ssh_instruct.decode('utf-8')
-        std_err = std_err.decode('utf-8')
-        
-        if pipes.returncode == 0:        
-            #Replace ssh by scp
-            ssh_instruct = self.splitClear(ssh_instruct,'\n')[0]
-            ssh_instruct = self.splitClear(ssh_instruct)
-            
-            #Create empty array for scp instruction
-            scp_instruct = []
-            #Find user@host field
-            skip = False
-            host = ""
-            for word in ssh_instruct:
+        # Call im_client.py to get state
+        cmd = [
+            'python3',
+            '/usr/local/bin/im_client.py',
+            'getinfo',
+            clusterId,
+            '-r',
+            'https://im.egi.eu/im',
+            '-a',
+            'auth-pipe',
+        ]
 
-                if skip:
-                    scp_instruct.append(word)
-                    skip = False
-                    continue
-                
-                if word == "sshpass":
-                    scp_instruct.append(word)
-                    continue
-                if word == "ssh":
-                    scp_instruct.append("scp")
-                    scp_instruct.append("-r")
-                    continue
+        # Execute command and capture output
+        state_output = subprocess.check_output(cmd, universal_newlines=True)
 
-                if word == "-p":
-                    scp_instruct.append("-P")
-                    skip = True
-                    continue
-                
-                if word[0] == '-':
-                    #is an option
-                    scp_instruct.append(word)
-                    if len(word) == 2:
-                        skip = True
-                    continue
+        # Split the output by lines
+        state_lines = state_output.split('\n')
 
-                #This field contain user@host
-                #Store it
-                host = word + ":" + destination
+        # Initialize a variable to store the private key content and host IP
+        private_key_content = None
+        hostIP = None
 
-            #Append files to upload and host + destination
-            scp_instruct.extend(words[1:len(words)])
-            scp_instruct.append(host)
-            
-            #Execute scp
-            pipes = subprocess.Popen(scp_instruct, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    
-            std_out, std_err = pipes.communicate()
-            std_out = std_out.decode("utf-8")
-            std_err = std_err.decode("utf-8")
-                    
-            if pipes.returncode == 0:
-                #Send output to notebook
-                print( std_out )
-                return "done"
-                
-            else:
-                #Send error to notebook
-                print( "Status: Fail " + str(pipes.returncode) + "\n")
-                print( std_err )
-                return "fail"                
+        # Iterate over each line in the output
+        private_key_started = False
+        for line in state_lines:
+            # Check if the line contains the private key information
+            if line.strip().startswith("disk.0.os.credentials.private_key ="):
+                private_key_started = True
+                private_key_content = line.split(" = ")[1].strip().strip("'") + '\n'
+                continue
+
+            # If private key capture has started, capture lines until END RSA PRIVATE KEY
+            if private_key_started:
+                private_key_content += line + '\n'
+
+            # Check if the line contains the end of the private key
+            if "END RSA PRIVATE KEY" in line:
+                private_key_started = False
+
+            if line.strip().startswith("net_interface.1.ip ="):
+                # Extract the host IP
+                hostIP = line.split("'")[1].strip()
+                break
+
+        # Check if private key content is found
+        if private_key_content:
+            # Write private key content to a file named key.pem
+            with open("key.pem", "w") as key_file:
+                key_file.write(private_key_content)
+
+            # Change permissions of key.pem to 600
+            os.chmod("key.pem", 0o600)
+
+        # Initialize the SCP command
+        cmd2 = ['scp', '-i', 'key.pem']
+
+        # Add each file to the SCP command
+        for file in files:
+            cmd2.extend([file])
+
+        # Add the destination path to the SCP command
+        cmd2.append(f'root@{hostIP}:{destination}')
+
+        # Execute SCP command
+        subprocess.run(cmd2)
+
+        # Remove auth-pipe and key.pem files
+        os.remove('auth-pipe')
+        os.remove('key.pem')
+
+        return              
             
     @line_magic
     def apricot_download(self, line):
         if len(line) == 0:
-            print("usage: download clusterId file1 file2 ... fileN destination-path\n")
+            print("usage: download clusterId file1 file2 ... fileN local-destination-path\n")
             return "fail"
         words = self.splitClear(line)
         if len(words) < 3:
-            print("usage: download clusterId file1 file2 ... fileN destination-path\n")
+            print("usage: download clusterId file1 file2 ... fileN local-destination-path\n")
             return "fail"
 
         # Get cluster id

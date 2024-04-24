@@ -25,23 +25,8 @@ class Apricot(Magics):
             return []
 
         return list(filter(len,line.split(pattern)))
-
-    ##################
-    #     Magics     #
-    ##################
-
-    @line_magic
-    def apricot_log(self, line):
-        if len(line) == 0:
-            print("Usage: apricot_log infID\n")
-            return "Fail"
-
-        # Split line
-        words = self.splitClear(line)
-
-        # Get cluster ID
-        infID = words[0]
-
+    
+    def createAuthPipe(self, clusterId):
         # Read the JSON data from the file
         with open('apricot_plugin/clusterList.json') as f:
             data = json.load(f)
@@ -49,12 +34,12 @@ class Apricot(Magics):
         # Find the cluster with the specified ID
         found_cluster = None
         for cluster in data['clusters']:
-            if cluster['clusterId'] == infID:
+            if cluster['clusterId'] == clusterId:
                 found_cluster = cluster
                 break
 
         if found_cluster is None:
-            print(f"Cluster with ID {infID} not found.")
+            print(f"Cluster with ID {clusterId} does not exist.")
             return "Fail"
 
         # Construct auth-pipe content based on cluster type
@@ -72,6 +57,27 @@ class Apricot(Magics):
         with open('auth-pipe', 'w') as auth_file:
             auth_file.write(auth_content)
 
+        return
+
+    ##################
+    #     Magics     #
+    ##################
+
+    @line_magic
+    def apricot_log(self, line):
+        if len(line) == 0:
+            print("Usage: apricot_log infID\n")
+            return "Fail"
+
+        # Split line
+        words = self.splitClear(line)
+
+        # Get cluster ID
+        infID = words[0]
+
+        # Call createAuthPipe method
+        self.createAuthPipe(infID)
+
         # Call im_client.py to get log
         pipes = subprocess.Popen(["python3", "/usr/local/bin/im_client.py", "getcontmsg", "-a", "auth-pipe", "-r", "https://im.egi.eu/im", infID], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -80,6 +86,9 @@ class Apricot(Magics):
         std_err = std_err.decode('utf-8')
 
         print(log)
+
+        # Remove auth-pipe file
+        os.remove('auth-pipe')
 
         return
     
@@ -101,20 +110,8 @@ class Apricot(Magics):
                 'State': ""
             }
 
-            # Construct auth-pipe content based on cluster type
-            auth_content = f"type = InfrastructureManager; username = user; password = pass;\n"
-
-            # Construct additional credentials based on cluster type
-            if cluster['type'] == "OpenStack":
-                auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}; tenant = {cluster['tenant']}"
-            elif cluster['type'] == "OpenNebula":
-                auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}"
-            elif cluster['type'] == "AWS":
-                auth_content += f"id = {cluster['id']}; type = {cluster['type']}; username = {cluster['user']}; password = {cluster['pass']}; host = {cluster['host']}"
-
-            # Write auth-pipe content to a file
-            with open('auth-pipe', 'w') as auth_file:
-                auth_file.write(auth_content)
+            # Call createAuthPipe method
+            self.createAuthPipe(cluster['clusterId'])
 
             # Call im_client.py to get state
             cmdState = [
@@ -179,9 +176,9 @@ class Apricot(Magics):
         # Print the information as a table using tabulate
         print(tabulate(cluster_data, headers=['Name', 'Cluster ID', 'IP', 'State'], tablefmt='grid'))
         
-        # Clean up auth-pipe file after processing
-        
-        subprocess.run(['rm', 'auth-pipe'])
+        # Remove auth-pipe file
+        os.remove('auth-pipe')
+
         return
 
     @line_magic
@@ -196,35 +193,8 @@ class Apricot(Magics):
         # Get cluster ID
         infID = words[0]
 
-        # Read the JSON data from the file
-        with open('apricot_plugin/clusterList.json') as f:
-            data = json.load(f)
-
-        # Find the cluster with the specified ID
-        found_cluster = None
-        for cluster in data['clusters']:
-            if cluster['clusterId'] == infID:
-                found_cluster = cluster
-                break
-
-        if found_cluster is None:
-            print(f"Cluster with ID {infID} not found.")
-            return "Fail"
-
-        # Construct auth-pipe content based on cluster type
-        auth_content = f"type = InfrastructureManager; username = user; password = pass;\n"
-
-        # Construct additional credentials based on cluster type
-        if found_cluster['type'] == "OpenStack":
-            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}; tenant = {found_cluster['tenant']}"
-        elif found_cluster['type'] == "OpenNebula":
-            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}"
-        elif found_cluster['type'] == "AWS":
-            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}"
-
-        # Write auth-pipe content to a file
-        with open('auth-pipe', 'w') as auth_file:
-            auth_file.write(auth_content)
+        # Call createAuthPipe function
+        self.createAuthPipe(infID)
 
         # Call im_client.py to get state
         cmd = [
@@ -277,7 +247,8 @@ class Apricot(Magics):
         print(tabulate(vm_info_list, headers=['VM ID', 'IP Address', 'Status', 'Provider', 'OS Image'], tablefmt='grid'))
         
         # Clean up auth-pipe file after processing
-        subprocess.run(['rm', 'auth-pipe'])
+        os.remove('auth-pipe')
+        
         return
 
     @line_magic
@@ -555,40 +526,13 @@ class Apricot(Magics):
             print("usage: download clusterId file1 file2 ... fileN destination-path\n")
             return "fail"
 
-        #Get cluster id
+        # Get cluster id
         clusterId = words[0]
-        destination = words[len(words)-1]
+        destination = words[len(words) - 1]
         files = words[1:-1]
 
-        # Read the JSON data from the file
-        with open('apricot_plugin/clusterList.json') as f:
-            data = json.load(f)
-
-        # Find the cluster with the specified ID
-        found_cluster = None
-        for cluster in data['clusters']:
-            if cluster['clusterId'] == clusterId:
-                found_cluster = cluster
-                break
-
-        if found_cluster is None:
-            print(f"Cluster with ID {clusterId} not found.")
-            return "Fail"
-
-        # Construct auth-pipe content based on cluster type
-        auth_content = f"type = InfrastructureManager; username = user; password = pass;\n"
-
-        # Construct additional credentials based on cluster type
-        if found_cluster['type'] == "OpenStack":
-            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}; tenant = {found_cluster['tenant']}"
-        elif found_cluster['type'] == "OpenNebula":
-            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}"
-        elif found_cluster['type'] == "AWS":
-            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}"
-
-        # Write auth-pipe content to a file
-        with open('auth-pipe', 'w') as auth_file:
-            auth_file.write(auth_content)
+        # Call createAuthPipe function
+        self.createAuthPipe(clusterId)
 
         # Call im_client.py to get state
         cmd = [
@@ -601,10 +545,10 @@ class Apricot(Magics):
             '-a',
             'auth-pipe',
         ]
-        
+
         # Execute command and capture output
         state_output = subprocess.check_output(cmd, universal_newlines=True)
-        
+
         # Split the output by lines
         state_lines = state_output.split('\n')
 
@@ -614,7 +558,6 @@ class Apricot(Magics):
 
         # Iterate over each line in the output
         private_key_started = False
-        # Iterate over each line in the output
         for line in state_lines:
             # Check if the line contains the private key information
             if line.strip().startswith("disk.0.os.credentials.private_key ="):
@@ -629,12 +572,10 @@ class Apricot(Magics):
             # Check if the line contains the end of the private key
             if "END RSA PRIVATE KEY" in line:
                 private_key_started = False
-                print(private_key_content)
-            
+
             if line.strip().startswith("net_interface.1.ip ="):
                 # Extract the host IP
                 hostIP = line.split("'")[1].strip()
-                print(hostIP)
                 break
 
         # Check if private key content is found
@@ -642,7 +583,7 @@ class Apricot(Magics):
             # Write private key content to a file named key.pem
             with open("key.pem", "w") as key_file:
                 key_file.write(private_key_content)
-            
+
             # Change permissions of key.pem to 600
             os.chmod("key.pem", 0o600)
 
@@ -659,7 +600,11 @@ class Apricot(Magics):
         # Execute SCP command
         subprocess.run(cmd2)
 
-        return            
+        # Remove auth-pipe and key.pem files
+        os.remove('auth-pipe')
+        os.remove('key.pem')
+
+        return           
             
     @line_cell_magic
     def apricot(self, code, cell=None):

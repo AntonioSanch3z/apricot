@@ -58,6 +58,44 @@ class Apricot(Magics):
 
         return
 
+    def generateKey(self, state_lines):
+        # Initialize variables to store the private key content and host IP
+        private_key_content = None
+        hostIP = None
+
+        # Iterate over each line in the state output
+        private_key_started = False
+        for line in state_lines:
+            # Check if the line contains the private key information
+            if line.strip().startswith("disk.0.os.credentials.private_key ="):
+                private_key_started = True
+                private_key_content = line.split(" = ")[1].strip().strip("'") + '\n'
+                continue
+
+            # If private key capture has started, capture lines until END RSA PRIVATE KEY
+            if private_key_started:
+                private_key_content += line + '\n'
+
+            # Check if the line contains the end of the private key
+            if "END RSA PRIVATE KEY" in line:
+                private_key_started = False
+
+            if line.strip().startswith("net_interface.1.ip ="):
+                # Extract the host IP
+                hostIP = line.split("'")[1].strip()
+                break
+
+        # Check if private key content is found
+        if private_key_content:
+            # Write private key content to a file named key.pem
+            with open("key.pem", "w") as key_file:
+                key_file.write(private_key_content)
+
+            # Change permissions of key.pem to 600
+            os.chmod("key.pem", 0o600)
+
+        return private_key_content, hostIP
+
     ##################
     #     Magics     #
     ##################
@@ -467,43 +505,12 @@ class Apricot(Magics):
         # Split the output by lines
         state_lines = state_output.split('\n')
 
-        # Initialize a variable to store the private key content and host IP
-        private_key_content = None
-        hostIP = None
+        # Call createKey function to extract private key content and host IP
+        private_key_content, hostIP = self.generateKey(state_lines)
 
-        # Iterate over each line in the output
-        private_key_started = False
-        for line in state_lines:
-            # Check if the line contains the private key information
-            if line.strip().startswith("disk.0.os.credentials.private_key ="):
-                private_key_started = True
-                private_key_content = line.split(" = ")[1].strip().strip("'") + '\n'
-                continue
-
-            # If private key capture has started, capture lines until END RSA PRIVATE KEY
-            if private_key_started:
-                private_key_content += line + '\n'
-
-            # Check if the line contains the end of the private key
-            if "END RSA PRIVATE KEY" in line:
-                private_key_started = False
-
-            if line.strip().startswith("net_interface.1.ip ="):
-                # Extract the host IP
-                hostIP = line.split("'")[1].strip()
-                break
-
-        # Check if private key content is found
         if private_key_content:
-            # Write private key content to a file named key.pem
-            with open("key.pem", "w") as key_file:
-                key_file.write(private_key_content)
-
-            # Change permissions of key.pem to 600
-            os.chmod("key.pem", 0o600)
-
-        # Initialize the SCP command
-        cmd2 = ['scp', '-i', 'key.pem']
+            # Initialize the SCP command
+            cmd2 = ['scp', '-i', 'key.pem']
 
         # Add each file to the SCP command
         for file in files:
@@ -576,43 +583,12 @@ class Apricot(Magics):
         # Split the output by lines
         state_lines = state_output.split('\n')
 
-        # Initialize a variable to store the private key content and host IP
-        private_key_content = None
-        hostIP = None
+        # Call createKey function to extract private key content and host IP
+        private_key_content, hostIP = self.generateKey(state_lines)
 
-        # Iterate over each line in the output
-        private_key_started = False
-        for line in state_lines:
-            # Check if the line contains the private key information
-            if line.strip().startswith("disk.0.os.credentials.private_key ="):
-                private_key_started = True
-                private_key_content = line.split(" = ")[1].strip().strip("'") + '\n'
-                continue
-
-            # If private key capture has started, capture lines until END RSA PRIVATE KEY
-            if private_key_started:
-                private_key_content += line + '\n'
-
-            # Check if the line contains the end of the private key
-            if "END RSA PRIVATE KEY" in line:
-                private_key_started = False
-
-            if line.strip().startswith("net_interface.1.ip ="):
-                # Extract the host IP
-                hostIP = line.split("'")[1].strip()
-                break
-
-        # Check if private key content is found
         if private_key_content:
-            # Write private key content to a file named key.pem
-            with open("key.pem", "w") as key_file:
-                key_file.write(private_key_content)
-
-            # Change permissions of key.pem to 600
-            os.chmod("key.pem", 0o600)
-
-        # Initialize the SCP command
-        cmd2 = ['scp', '-i', 'key.pem']
+            # Initialize the SCP command
+            cmd2 = ['scp', '-i', 'key.pem']
 
         # Add each file to the SCP command
         for file in files:

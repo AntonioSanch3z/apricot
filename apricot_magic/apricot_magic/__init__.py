@@ -84,18 +84,27 @@ class Apricot(Magics):
         # Call im_client.py to get log
         pipes = subprocess.Popen(["python3", "/usr/local/bin/im_client.py", "getcontmsg", "-a", "auth-pipe", "-r", "https://im.egi.eu/im", infID], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        log, std_err = pipes.communicate()
-        log = log.decode('utf-8')
-        std_err = std_err.decode('utf-8')
+        std_out, std_err = pipes.communicate()
+        std_out = std_out.decode("utf-8")
+        std_err = std_err.decode("utf-8")
+                
+        if pipes.returncode == 0:
+            #Send output to notebook
+            print( std_out )
 
-        print(log)
+        else:
+            #Send error and output to notebook
+            print( "Status: fail " + str(pipes.returncode) + "\n")
+            print( std_err + "\n")
+            print( std_out )
+            return "Fail"
 
         # Check if the file exists and remove it
         if os.path.exists('auth-pipe'):
             os.remove('auth-pipe')
 
         return
-    
+
     @line_magic
     def apricot_ls(self, line):
         # Read the JSON data from the file
@@ -160,7 +169,6 @@ class Apricot(Magics):
                 '-a',
                 'auth-pipe',
             ]
-
 
             # Execute command and capture output
             try:
@@ -254,13 +262,12 @@ class Apricot(Magics):
                 vm_info_list.append([current_vm_id, ip_address, status, provider_type, os_image])
 
         except subprocess.CalledProcessError as e:
-            #print(f"Error: {e.output.strip()}")
-            return "Failed"
+            print(f"Error: {e.output.strip()}")
 
         # Print the information as a table using tabulate
         print(tabulate(vm_info_list, headers=['VM ID', 'IP Address', 'Status', 'Provider', 'OS Image'], tablefmt='grid'))
         
-        # Check if the file exists and remove it
+        # Clean up auth-pipe file after processing
         if os.path.exists('auth-pipe'):
             os.remove('auth-pipe')
         
@@ -423,11 +430,11 @@ class Apricot(Magics):
     @line_magic
     def apricot_upload(self, line):
         if len(line) == 0:
-            print("usage: upload clusterId file1 file2 ... fileN remote-destination-path\n")
+            print("Usage: upload clusterId file1 file2 ... fileN remote-destination-path\n")
             return "fail"
         words = self.splitClear(line)
         if len(words) < 3:
-            print("usage: upload clusterId file1 file2 ... fileN remote-destination-path\n")
+            print("Usage: upload clusterId file1 file2 ... fileN remote-destination-path\n")
             return "fail"
 
         # Get cluster id
@@ -506,24 +513,37 @@ class Apricot(Magics):
         cmd2.append(f'root@{hostIP}:{destination}')
 
         # Execute SCP command
-        subprocess.run(cmd2)
+        pipes = subprocess.Popen(cmd2, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        std_out, std_err = pipes.communicate()
+        std_out = std_out.decode("utf-8")
+        std_err = std_err.decode("utf-8")
+                
+        if pipes.returncode == 0:
+            #Send output to notebook
+            print( std_out )
+
+        else:
+            #Send error and output to notebook
+            print( std_err + "\n")
+            print( std_out )
 
         # Check if the files exist and remove them
         if os.path.exists('auth-pipe'):
             os.remove('auth-pipe')
+        if os.path.exists('key.pem'):
             os.remove('key.pem')
-
 
         return "Done"
             
     @line_magic
     def apricot_download(self, line):
         if len(line) == 0:
-            print("usage: download clusterId file1 file2 ... fileN local-destination-path\n")
+            print("Usage: download clusterId file1 file2 ... fileN local-destination-path\n")
             return "fail"
         words = self.splitClear(line)
         if len(words) < 3:
-            print("usage: download clusterId file1 file2 ... fileN local-destination-path\n")
+            print("Usage: download clusterId file1 file2 ... fileN local-destination-path\n")
             return "fail"
 
         # Get cluster id
@@ -602,11 +622,23 @@ class Apricot(Magics):
         cmd2.append(destination)
 
         # Execute SCP command
-        subprocess.run(cmd2)
+        pipes = subprocess.Popen(cmd2, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        std_out, std_err = pipes.communicate()
+        std_out = std_out.decode("utf-8")
+        std_err = std_err.decode("utf-8")
+                
+        if pipes.returncode == 0:
+            #Send output to notebook
+            print(std_out)
+        else:
+            #Send error and output to notebook
+            print( std_err + "\n")
 
         # Check if the files exist and remove them
         if os.path.exists('auth-pipe'):
             os.remove('auth-pipe')
+        if os.path.exists('key.pem'):
             os.remove('key.pem')
 
         return "Done"
@@ -638,7 +670,7 @@ class Apricot(Magics):
                 print("Incomplete instruction: " + "'" + code + "' \n 'exec' format is: 'exec cluster-name instruction'" )
                 return "Fail"
             else:
-                #Get cluster name
+                #Get cluster ID
                 clusterId = words[1]
                 
                 #Get command to execute at cluster
@@ -680,28 +712,13 @@ class Apricot(Magics):
                     #Send error to notebook
                     print( "Status: fail " + str(pipes.returncode) + "\n")
                     print( std_err + "\n" + ssh_instruct)
-                    print( "\nCheck if cluster name '" + clusterId + "' exists\n" )
+                    print( "\nCheck if cluster ID '" + clusterId + "' exists\n" )
                     return "Fail"
                 
-        # elif word1 == "list":
-                
-        #     pipes = subprocess.Popen(["ec3","list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    
-        #     std_out, std_err = pipes.communicate()
-        #     std_out = std_out.decode("utf-8")
-        #     std_err = std_err.decode("utf-8")
-                    
-        #     if pipes.returncode == 0:
-        #         #Send output to notebook
-        #         print( std_out )
-                
-        #     else:
-        #         #Send error to notebook
-        #         print( "Status: fail " + str(pipes.returncode) + "\n")
-        #         print( std_err )
-        #         return "fail"                
-        
-        if word1 == "destroy":
+        elif word1 == "list":
+            self.apricot_ls(code)
+
+        elif word1 == "destroy":
             if len(words) != 2:  # Check if only one argument is provided (the cluster ID)
                 print("Usage: destroy clusterId")
                 return "Fail"
@@ -727,18 +744,20 @@ class Apricot(Magics):
                 ]
 
                 # Execute command and capture output
-                #state_output = subprocess.check_output(destroyCMD, universal_newlines=True)
-                #subprocess.run(destroyCMD)
-
                 process = subprocess.Popen(destroyCMD, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                print("Destroying...\n Please wait, this may take a few seconds", end='', flush=True)  # Print without newline
+                print("Destroying...\nPlease wait, this may take a few seconds.", end='', flush=True)
 
                 log, std_err = process.communicate()
                 log = log.decode('utf-8')
                 std_err = std_err.decode('utf-8')
 
                 # Clear the message
-                print("\r", end='', flush=True)
+                print("\r" + " " * len("Destroying...\nPlease wait, this may take a few seconds."), end='', flush=True)
+
+                if log:
+                    print(log)
+                if std_err:
+                    print(std_err)
 
                 # Load cluster list from JSON file
                 with open('apricot_plugin/clusterList.json', 'r') as f:

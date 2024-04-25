@@ -39,8 +39,7 @@ class Apricot(Magics):
                 break
 
         if found_cluster is None:
-            print(f"Cluster with ID {clusterId} does not exist.")
-            return "Fail"
+            raise ValueError(f"Cluster with ID {clusterId} does not exist.")
 
         # Construct auth-pipe content based on cluster type
         auth_content = f"type = InfrastructureManager; username = user; password = pass;\n"
@@ -75,8 +74,12 @@ class Apricot(Magics):
         # Get cluster ID
         infID = words[0]
 
-        # Call createAuthPipe method
-        self.createAuthPipe(infID)
+        try:
+            # Call createAuthPipe method
+            self.createAuthPipe(infID)
+        except ValueError as e:
+            print(e)
+            return "Failed"
 
         # Call im_client.py to get log
         pipes = subprocess.Popen(["python3", "/usr/local/bin/im_client.py", "getcontmsg", "-a", "auth-pipe", "-r", "https://im.egi.eu/im", infID], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -87,8 +90,9 @@ class Apricot(Magics):
 
         print(log)
 
-        # Remove auth-pipe file
-        os.remove('auth-pipe')
+        # Check if the file exists and remove it
+        if os.path.exists('auth-pipe'):
+            os.remove('auth-pipe')
 
         return
     
@@ -110,8 +114,12 @@ class Apricot(Magics):
                 'State': ""
             }
 
-            # Call createAuthPipe method
-            self.createAuthPipe(cluster['clusterId'])
+            try:
+                # Call createAuthPipe method
+                self.createAuthPipe(cluster['clusterId'])
+            except ValueError as e:
+                print(e)
+                return "Failed"
 
             # Call im_client.py to get state
             cmdState = [
@@ -176,15 +184,16 @@ class Apricot(Magics):
         # Print the information as a table using tabulate
         print(tabulate(cluster_data, headers=['Name', 'Cluster ID', 'IP', 'State'], tablefmt='grid'))
         
-        # Remove auth-pipe file
-        os.remove('auth-pipe')
+        # Check if the file exists and remove it
+        if os.path.exists('auth-pipe'):
+            os.remove('auth-pipe')
 
         return
 
     @line_magic
     def apricot_nodels(self, line):
         if len(line) == 0:
-            print("Usage: apricot_log infID\n")
+            print("Usage: nodels clusterID\n")
             return "Fail"
 
         # Split line
@@ -193,8 +202,12 @@ class Apricot(Magics):
         # Get cluster ID
         infID = words[0]
 
-        # Call createAuthPipe function
-        self.createAuthPipe(infID)
+        try:
+            # Call createAuthPipe method
+            self.createAuthPipe(infID)
+        except ValueError as e:
+            print(e)
+            return "Failed"
 
         # Call im_client.py to get state
         cmd = [
@@ -241,13 +254,15 @@ class Apricot(Magics):
                 vm_info_list.append([current_vm_id, ip_address, status, provider_type, os_image])
 
         except subprocess.CalledProcessError as e:
-            print(f"Error: {e.output.strip()}")
+            #print(f"Error: {e.output.strip()}")
+            return "Failed"
 
         # Print the information as a table using tabulate
         print(tabulate(vm_info_list, headers=['VM ID', 'IP Address', 'Status', 'Provider', 'OS Image'], tablefmt='grid'))
         
-        # Clean up auth-pipe file after processing
-        os.remove('auth-pipe')
+        # Check if the file exists and remove it
+        if os.path.exists('auth-pipe'):
+            os.remove('auth-pipe')
         
         return
 
@@ -420,8 +435,12 @@ class Apricot(Magics):
         destination = words[len(words) - 1]
         files = words[1:-1]
 
-        # Call createAuthPipe function
-        self.createAuthPipe(clusterId)
+        try:
+            # Call createAuthPipe method
+            self.createAuthPipe(clusterId)
+        except ValueError as e:
+            print(e)
+            return "Failed"
 
         # Call im_client.py to get state
         cmd = [
@@ -489,11 +508,13 @@ class Apricot(Magics):
         # Execute SCP command
         subprocess.run(cmd2)
 
-        # Remove auth-pipe and key.pem files
-        os.remove('auth-pipe')
-        os.remove('key.pem')
+        # Check if the files exist and remove them
+        if os.path.exists('auth-pipe'):
+            os.remove('auth-pipe')
+            os.remove('key.pem')
 
-        return              
+
+        return "Done"
             
     @line_magic
     def apricot_download(self, line):
@@ -510,8 +531,12 @@ class Apricot(Magics):
         destination = words[len(words) - 1]
         files = words[1:-1]
 
-        # Call createAuthPipe function
-        self.createAuthPipe(clusterId)
+        try:
+            # Call createAuthPipe method
+            self.createAuthPipe(clusterId)
+        except ValueError as e:
+            print(e)
+            return "Failed"
 
         # Call im_client.py to get state
         cmd = [
@@ -579,15 +604,15 @@ class Apricot(Magics):
         # Execute SCP command
         subprocess.run(cmd2)
 
-        # Remove auth-pipe and key.pem files
-        os.remove('auth-pipe')
-        os.remove('key.pem')
+        # Check if the files exist and remove them
+        if os.path.exists('auth-pipe'):
+            os.remove('auth-pipe')
+            os.remove('key.pem')
 
-        return           
+        return "Done"
             
     @line_cell_magic
     def apricot(self, code, cell=None):
-
         #Check if is a cell call
         if cell != None:
             lines = self.splitClear(cell,'\n')
@@ -658,54 +683,84 @@ class Apricot(Magics):
                     print( "\nCheck if cluster name '" + clusterId + "' exists\n" )
                     return "Fail"
                 
-        elif word1 == "list":
+        # elif word1 == "list":
                 
-            pipes = subprocess.Popen(["ec3","list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        #     pipes = subprocess.Popen(["ec3","list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     
-            std_out, std_err = pipes.communicate()
-            std_out = std_out.decode("utf-8")
-            std_err = std_err.decode("utf-8")
+        #     std_out, std_err = pipes.communicate()
+        #     std_out = std_out.decode("utf-8")
+        #     std_err = std_err.decode("utf-8")
                     
-            if pipes.returncode == 0:
-                #Send output to notebook
-                print( std_out )
+        #     if pipes.returncode == 0:
+        #         #Send output to notebook
+        #         print( std_out )
                 
-            else:
-                #Send error to notebook
-                print( "Status: fail " + str(pipes.returncode) + "\n")
-                print( std_err )
-                return "fail"                
-        elif word1 == "destroy":
-                
-            if len(userCMD) == 0:
-                #Send error to notebook
-                print( "Cluster name missing\n Usage: destroy clusterId" )
+        #     else:
+        #         #Send error to notebook
+        #         print( "Status: fail " + str(pipes.returncode) + "\n")
+        #         print( std_err )
+        #         return "fail"                
+        
+        if word1 == "destroy":
+            if len(words) != 2:  # Check if only one argument is provided (the cluster ID)
+                print("Usage: destroy clusterId")
                 return "Fail"
             else:
-                destroyCMD = ["ec3","destroy","-y"]
-                destroyCMD.extend(self.splitClear(userCMD))
-                pipes = subprocess.Popen( destroyCMD, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                
-                std_out, std_err = pipes.communicate()
-                std_out = std_out.decode("utf-8")
-                std_err = std_err.decode("utf-8")
+                clusterId = words[1]  # Use the provided cluster ID directly
 
-                if pipes.returncode == 0:
-                    #Send output to notebook
-                    print( std_out )
-                
-                else:
-                    #Send error to notebook
-                    print( "Status: fail " + str(pipes.returncode) + "\n")
-                    print( std_err )
-                    print( std_out )
-                    return "Fail"                
-        else:
-            #Unknown command
-            print("Unknown command")
-            return "Fail"
+                try:
+                    # Call createAuthPipe method
+                    self.createAuthPipe(clusterId)
+                except ValueError as e:
+                    print(e)
+                    return "Failed"
+
+                destroyCMD = [
+                    'python3',
+                    '/usr/local/bin/im_client.py',
+                    'destroy',
+                    clusterId,
+                    '-r',
+                    'https://im.egi.eu/im',
+                    '-a',
+                    'auth-pipe',
+                ]
+
+                # Execute command and capture output
+                #state_output = subprocess.check_output(destroyCMD, universal_newlines=True)
+                #subprocess.run(destroyCMD)
+
+                process = subprocess.Popen(destroyCMD, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                print("Destroying...\n Please wait, this may take a few seconds", end='', flush=True)  # Print without newline
+
+                log, std_err = process.communicate()
+                log = log.decode('utf-8')
+                std_err = std_err.decode('utf-8')
+
+                # Clear the message
+                print("\r", end='', flush=True)
+
+                # Load cluster list from JSON file
+                with open('apricot_plugin/clusterList.json', 'r') as f:
+                    data = json.load(f)
+
+                # Find and remove the cluster with the specified ID
+                for cluster in data['clusters']:
+                    if cluster['clusterId'] == clusterId:
+                        data['clusters'].remove(cluster)
+                        break
+
+                # Write the updated cluster list back to the JSON file
+                with open('apricot_plugin/clusterList.json', 'w') as f:
+                    json.dump(data, f, indent=4)
+
+                # Check if the file exists and remove it
+                if os.path.exists('auth-pipe'):
+                    os.remove('auth-pipe')
+
+                return "Done"
         
-        return "Done"
+        return
 
 
 def load_ipython_extension(ipython):

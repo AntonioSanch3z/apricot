@@ -58,12 +58,34 @@ class Apricot(Magics):
 
         return
 
-    def generateKey(self, state_lines):
+    def generateKey(self, clusterId):
+        """
+        Generates private key and host IP using im_client.py.
+        """
+        
+        # Call im_client.py to get state
+        cmd = [
+            'python3',
+            '/usr/local/bin/im_client.py',
+            'getinfo',
+            clusterId,
+            '-r',
+            'https://im.egi.eu/im',
+            '-a',
+            'auth-pipe',
+        ]
+
+        # Execute command and capture output
+        state_output = subprocess.check_output(cmd, universal_newlines=True)
+
+        # Split the output by lines
+        state_lines = state_output.split('\n')
+
         # Initialize variables to store the private key content and host IP
         private_key_content = None
         hostIP = None
 
-        # Iterate over each line in the state output
+        # Iterate over each line in the output
         private_key_started = False
         for line in state_lines:
             # Check if the line contains the private key information
@@ -487,26 +509,8 @@ class Apricot(Magics):
             print(e)
             return "Failed"
 
-        # Call im_client.py to get state
-        cmd = [
-            'python3',
-            '/usr/local/bin/im_client.py',
-            'getinfo',
-            clusterId,
-            '-r',
-            'https://im.egi.eu/im',
-            '-a',
-            'auth-pipe',
-        ]
-
-        # Execute command and capture output
-        state_output = subprocess.check_output(cmd, universal_newlines=True)
-
-        # Split the output by lines
-        state_lines = state_output.split('\n')
-
         # Call createKey function to extract private key content and host IP
-        private_key_content, hostIP = self.generateKey(state_lines)
+        private_key_content, hostIP = self.generateKey(clusterId)
 
         if private_key_content:
             # Initialize the SCP command
@@ -565,26 +569,8 @@ class Apricot(Magics):
             print(e)
             return "Failed"
 
-        # Call im_client.py to get state
-        cmd = [
-            'python3',
-            '/usr/local/bin/im_client.py',
-            'getinfo',
-            clusterId,
-            '-r',
-            'https://im.egi.eu/im',
-            '-a',
-            'auth-pipe',
-        ]
-
-        # Execute command and capture output
-        state_output = subprocess.check_output(cmd, universal_newlines=True)
-
-        # Split the output by lines
-        state_lines = state_output.split('\n')
-
         # Call createKey function to extract private key content and host IP
-        private_key_content, hostIP = self.generateKey(state_lines)
+        private_key_content, hostIP = self.generateKey(clusterId)
 
         if private_key_content:
             # Initialize the SCP command
@@ -633,6 +619,7 @@ class Apricot(Magics):
 
         if len(code) == 0:
             return "Fail"
+
         words = self.splitClear(code)
         #Get first word
         word1 = words[0]
@@ -640,6 +627,7 @@ class Apricot(Magics):
         userCMD = ""
         if len(words) > 1:
             userCMD = " ".join(words[1:])
+
         if word1 == "exec" or word1 == "execAsync":
                 
             if len(words) < 3:
@@ -648,10 +636,8 @@ class Apricot(Magics):
             else:
                 #Get cluster ID
                 clusterId = words[1]
-
                 #Get VM ID
                 vmId = words[2]
-                
                 #Get command to execute at cluster
                 clusterCMD = words[3:]
 
@@ -662,26 +648,8 @@ class Apricot(Magics):
                     print(e)
                     return "Failed"
 
-                # Call im_client.py to get state
-                cmdState = [
-                    'python3',
-                    '/usr/local/bin/im_client.py',
-                    'getinfo',
-                    clusterId,
-                    '-r',
-                    'https://im.egi.eu/im',
-                    '-a',
-                    'auth-pipe',
-                ]
-
-                # Execute command and capture output
-                state_output = subprocess.check_output(cmdState, universal_newlines=True)
-
-                # Split the output by lines
-                state_lines = state_output.split('\n')
-
                 # Call createKey function to extract private key content and host IP
-                private_key_content, hostIP = self.generateKey(state_lines)
+                private_key_content, hostIP = self.generateKey(clusterId)
 
                 if private_key_content:
                     # Initialize the SSH command

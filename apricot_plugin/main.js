@@ -1,5 +1,5 @@
-define([
-    'require',
+define([    
+    'require', 
     'jquery',
     'base/js/namespace',
     'base/js/events',
@@ -20,7 +20,6 @@ define([
 
     var prefix = "infrastructure-deployment";
     var applications = [];
-    var templatesURL = "";
     var deployInfo = {};
     var deploying = false; //Stores if the notebook is deploying something
 
@@ -57,7 +56,7 @@ define([
         }
     }
 
-    var load_css = function () {
+    var loadCSS = function () {
         console.log("Loading css");
         var link = document.createElement("link");
         link.type = "text/css";
@@ -85,7 +84,7 @@ define([
             }
             table.append(row);
         }
-    
+
         return table;
     };
 
@@ -93,36 +92,37 @@ define([
     //*   Buttons    *//
     //****************//
 
-    var listDeployments_button = function () {
+    var listDeploymentsButton = function () {
         console.log("Creating deployments list button");
         if (!Jupyter.toolbar) {
-            events.on("app_initialized.NotebookApp", listDeployments_button);
+            events.on("app_initialized.NotebookApp", listDeploymentsButton);
             return;
         }
-        if ($("#listDeployments_button").length === 0) {
+        if ($("#listDeploymentsButton").length === 0) {
             Jupyter.toolbar.add_buttons_group([
                 Jupyter.actions.register({
-                    "help": "Deployments list",
-                    "icon": "fa-list",
-                    "handler": toggle_DeploymentList,
+                    "help": "List of deployed infrastructures",
+                    "icon": "fa-th-list",
+                    "handler": toggleDeploymentList,
                 }, "toggle-deployment-list", prefix)
             ]);
         }
     };
 
-    var deploy_button = function () {
+    var deployButton = function () {
         console.log("Creating deploy button");
         if (!Jupyter.toolbar) {
-            events.on("app_initialized.NotebookApp", deploy_button);
+            events.on("app_initialized.NotebookApp", deployButton);
             return;
         }
         clearDeployInfo();
-        if ($("#deploy_button").length === 0) {
+
+        if ($("#deployButton").length === 0) {
             Jupyter.toolbar.add_buttons_group([
                 Jupyter.actions.register({
-                    "help": "Infrastructure deploy",
+                    "help": "Infrastructure deployment menu",
                     "icon": "fal fa-sitemap",
-                    "handler": toggle_Deploy,
+                    "handler": toggleDeploy,
                 }, "toggle-deploy", prefix)
             ]);
         }
@@ -132,11 +132,11 @@ define([
     //*   Dialogs    *//
     //****************//
 
-    var create_ListDeployments_dialog = function (show) {
+    var creatListDeploymentsDialog = function (show) {
         //If kernel is not available, call the function again when it is available
         if (typeof Jupyter.notebook.kernel == "undefined" || Jupyter.notebook.kernel == null) {
             events.on("kernel_ready.Kernel", function (evt, data) {
-                create_ListDeployments_dialog(show);
+                creatListDeploymentsDialog(show);
             });
             return;
         }
@@ -148,9 +148,11 @@ define([
                 output: function (data) {
                     // Check message
                     var check = checkStream(data);
+                    console.log("check", check);
+                    console.log("data", data);
                     if (check < 0) return; // Not a stream
                     if (check > 0) { // Error message
-                        alert(data.content.text);
+                        alert("alert", data.content.text);
                         return;
                     }
 
@@ -168,7 +170,7 @@ define([
                     lists["State"] = [];
 
                     // Load cluster list from file using AJAX
-                    $.get('apricot_plugin/clusterList.json', function (clusterList) {
+                    $.get('apricot_plugin/infrastructuresList.json";', function (clusterList) {
                         if (clusterList.clusters.length === 0) {
                             // If cluster list is empty, create an empty table
                             var table = createTable(lists);
@@ -183,9 +185,8 @@ define([
                         // Iterate through each cluster
                         for (let i = 0; i < clusterList.clusters.length; i++) {
                             var cluster = clusterList.clusters[i];
-                            //var clusterState = clusterList.clusters[i].clusterState;
                             lists.Name.push(cluster.name);
-                            lists.ID.push(cluster.clusterId);
+                            lists.ID.push(cluster.infrastructureID);
 
                             // Call clusterState function for each cluster
                             var stateCmd = clusterState(cluster);
@@ -232,8 +233,8 @@ define([
 
                         // Call clusterIP function for each cluster
                         for (let i = 0; i < clusterList.clusters.length; i++) {
-                            var clusterId = clusterList.clusters[i].clusterId;
-                            var ipCmd = clusterIP(clusterId);
+                            var infrastructureID = clusterList.clusters[i].infrastructureID;
+                            var ipCmd = clusterIP(infrastructureID);
                             console.log("ipCmd", ipCmd);
                             var ipCallbacks = {
                                 // Callback function to handle IP output
@@ -298,12 +299,12 @@ define([
         };
 
         // Execute command to retrieve cluster list
-        var cmd = "cat apricot_plugin/clusterList.json";
+        var cmd = "cat apricot_plugin/infrastructuresList.json";
         var Kernel = Jupyter.notebook.kernel;
         Kernel.execute(cmd, callbacks);
     };
 
-    var create_Deploy_dialog = function () {
+    var createDeployDialog = function () {
         console.log("Creating deploy window");
 
         var deploy_dialog = $('<div id="dialog-deploy" title="Deploy infrastructure">')
@@ -311,7 +312,7 @@ define([
         $("body").append(deploy_dialog);
         $("#dialog-deploy").dialog()
 
-        state_deploy_provider();
+        stateDeployProvider();
 
         //Close dialog
         $("#dialog-deploy").dialog("close");
@@ -322,7 +323,7 @@ define([
     //****************// 
 
     // select provider function
-    var state_deploy_provider = function () {
+    var stateDeployProvider = function () {
 
         //Get dialog
         var deployDialog = $("#dialog-deploy");
@@ -349,7 +350,7 @@ define([
 
                         deployInfo.id = "one";
                         deployInfo.deploymentType = "OpenNebula";
-                        state_recipe_type();
+                        stateRecipeType();
                     }
                 },
                 {
@@ -364,7 +365,7 @@ define([
                         deployInfo.id = "ec2";
                         deployInfo.deploymentType = "EC2";
 
-                        state_recipe_type();
+                        stateRecipeType();
                     },
                 },
                 {
@@ -379,14 +380,14 @@ define([
                         deployInfo.id = "ost";
                         deployInfo.deploymentType = "OpenStack";
 
-                        state_recipe_type();
+                        stateRecipeType();
                     }
                 }
             ]);
     }
 
     // Deploy recipe type
-    var state_recipe_type = function () {
+    var stateRecipeType = function () {
 
         //Get dialog
         var deployDialog = $("#dialog-deploy");
@@ -404,28 +405,28 @@ define([
                 text: "Back",
                 icon: "ui-icon-circle-arrow-w",
                 showText: false,
-                click: state_deploy_provider
+                click: stateDeployProvider
             },
             "Simple-node-disk": function () {
                 deployInfo.recipe = "Simple-node-disk";
                 applications = ["galaxy", "ansible_tasks", "noderedvm", "minio_compose"];
-                state_recipe_features();
+                stateRecipeFeatures();
             },
             "Slurm": function () {
                 deployInfo.recipe = "Slurm";
                 applications = ["slurm_cluster", "slurm_elastic", "slurm_galaxy", "docker_cluster"];
-                state_recipe_features();
+                stateRecipeFeatures();
             },
             "Kubernetes": function () {
                 deployInfo.recipe = "Kubernetes";
                 applications = ["kubernetes", "kubeapps", "prometheus", "minio_compose", "noderedvm", "influxdb", "argo"];
-                state_recipe_features();
+                stateRecipeFeatures();
             }
         });
 
     }
 
-    var state_recipe_features = function () {
+    var stateRecipeFeatures = function () {
 
         // Get dialog
         var deployDialog = $("#dialog-deploy");
@@ -479,7 +480,7 @@ define([
         deployDialog.append(ul);
 
         deployDialog.dialog("option", "buttons", {
-            "Back": state_recipe_type,
+            "Back": stateRecipeType,
             "Next": function () {
                 // Set applications
                 var selectedApplications = [];
@@ -491,13 +492,13 @@ define([
                 }
                 deployInfo.apps = selectedApplications;
 
-                state_deploy_credentials();
+                stateDeployCredentials();
             }
         });
     }
 
     // introduce credentials function
-    var state_deploy_credentials = function () {
+    var stateDeployCredentials = function () {
 
         //Get dialog
         var deployDialog = $("#dialog-deploy");
@@ -557,7 +558,7 @@ define([
 
         deployDialog.dialog("option", "buttons", {
             "Back": function () {
-                state_recipe_features();
+                stateRecipeFeatures();
             },
             "Next": function () {
                 deployInfo.host = $('#hostIn').val();
@@ -566,15 +567,15 @@ define([
                 deployInfo.credential = $("#userPassIn").val();
 
                 if (deployInfo.deploymentType == "EC2") {
-                    state_deploy_EC2_instances();
+                    stateDeployEC2Instances();
                 }
-                else { state_deploy_vmSpec(); }
+                else { stateDeployVMSpec(); }
             }
         });
     }
 
     // state deploy-EC2-instances
-    var state_deploy_EC2_instances = function () {
+    var stateDeployEC2Instances = function () {
 
         //Get dialog
         var deployDialog = $("#dialog-deploy");
@@ -612,7 +613,7 @@ define([
         deployDialog.append(form);
 
         deployDialog.dialog("option", "buttons", {
-            "Back": state_deploy_credentials,
+            "Back": stateDeployCredentials,
             "Next": function () {
                 //Availability zone
                 var AWSzone = $("#availabilityZoneIn").val();
@@ -622,13 +623,13 @@ define([
                 deployInfo.worker.image = imageURL;
                 deployInfo.port = $("#clusterPort").val();
 
-                state_deploy_vmSpec();
+                stateDeployVMSpec();
             }
         });
     }
 
     // state deploy-one-worker
-    var state_deploy_vmSpec = function () {
+    var stateDeployVMSpec = function () {
 
         //Get dialog
         var deployDialog = $("#dialog-deploy");
@@ -665,7 +666,7 @@ define([
 
         deployDialog.dialog("option", "buttons", {
             "Back": function () {
-                state_deploy_credentials();
+                stateDeployCredentials();
             },
             "Next": {
                 text: deployInfo.apps.length === 0 ? "Deploy" : "Next",
@@ -678,16 +679,16 @@ define([
                     deployInfo.worker.num_gpus = $("#clusterGPUs").val();
 
                     if (deployInfo.apps.length === 0) {
-                        state_deploy_app();
+                        stateDeployApp();
                     } else {
-                        state_deploy_features();
+                        stateDeployFeatures();
                     }
                 }
             }
         });
     }
 
-    var state_deploy_features = function () {
+    var stateDeployFeatures = function () {
         // Get dialog
         var deployDialog = $("#dialog-deploy");
 
@@ -777,7 +778,7 @@ define([
             var outputs = forms.map(form => form.outputs);
             deployDialog.dialog("option", "buttons", {
                 "Back": function () {
-                    state_deploy_vmSpec();
+                    stateDeployVMSpec();
                 },
                 "Deploy": function () {
                     var userInputs = forms.map(async function (formData) {
@@ -806,14 +807,14 @@ define([
                             outputs: outputs
                         };
                     });
-                    state_deploy_app(userInputs, nodeTemplates, outputs);
+                    stateDeployApp(userInputs, nodeTemplates, outputs);
                 }
             });
         });
 
     };
 
-    var state_deploy_app = function (populatedTemplates, nodeTemplates, outputs) {
+    var stateDeployApp = function (populatedTemplates, nodeTemplates, outputs) {
         var deployDialog = $("#dialog-deploy");
 
         // Clear dialog
@@ -862,7 +863,7 @@ define([
                     var yamlContent = jsyaml.dump(resolvedTemplate);
 
                     // Create deploy script
-                    var deployCmd = deployIMCommand(deployInfo, templatesURL, yamlContent);
+                    var deployCmd = deployIMCommand(deployInfo, yamlContent);
 
                     // Clear dialog
                     deployDialog.empty();
@@ -884,8 +885,8 @@ define([
                                     alert(data.content.text);
                                     console.log(data.content.text);
                                     if (deployInfo.apps.length === 0) {
-                                        state_deploy_vmSpec();
-                                    } else state_deploy_features();
+                                        stateDeployVMSpec();
+                                    } else stateDeployFeatures();
                                 } else {
                                     var pubtext = data.content.text.replace("\r", "\n");
                                     deploying = false;
@@ -894,12 +895,12 @@ define([
 
                                     // Extract ID using regular expression
                                     var idMatch = pubtext.match(/ID: ([\w-]+)/);
-                                    var clusterId = idMatch[1];
+                                    var infrastructureID = idMatch[1];
 
                                     // Create a JSON object
                                     var jsonObj = {
                                         name: deployInfo.infName,
-                                        clusterId: clusterId,
+                                        infrastructureID: infrastructureID,
                                         id: deployInfo.id,
                                         type: deployInfo.deploymentType,
                                         host: deployInfo.host,
@@ -915,7 +916,7 @@ define([
                                     var saveCmd = saveToClusterList(jsonObj);
                                     Kernel.execute(saveCmd);
 
-                                    create_Deploy_dialog();
+                                    createDeployDialog();
                                 }
                             }
                         }
@@ -932,7 +933,7 @@ define([
         });
     };
 
-    var deployIMCommand = function (obj, templateURL, mergedTemplate) {
+    var deployIMCommand = function (obj, mergedTemplate) {
         var pipeAuth = obj.infName + "-auth-pipe";
         var imageRADL = obj.infName;
         var cmd = "%%bash \n";
@@ -973,11 +974,11 @@ define([
     };
 
     var saveToClusterList = function (obj) {
-        // Only works if the { "clusters": [ ] } structure exists in the JSON file
-        var filePath = "$PWD/apricot_plugin/clusterList.json";
+        // Only works if the { "infrastructures": [ ] } structure exists in the JSON file
+        var filePath = "$PWD/apricot_plugin/infrastructuresList.json";
         var cmd = "%%bash \n";
         cmd += "existingJson=$(cat " + filePath + ")\n"; // Read existing JSON
-        cmd += "newJson=$(echo $existingJson | jq '.clusters += [" + JSON.stringify(obj) + "]')\n"; // Append new object
+        cmd += "newJson=$(echo $existingJson | jq '.infrastructures += [" + JSON.stringify(obj) + "]')\n"; // Append new object
         cmd += "echo $newJson > " + filePath + "\n"; // Write updated JSON back to file
         console.log("cmd", cmd);
         return cmd;
@@ -1061,7 +1062,7 @@ define([
     }
 
     var clusterState = function (cluster) {
-        var clusterId = cluster.clusterId;
+        var infrastructureID = cluster.infrastructureID;
         var id = cluster.providerId;
         var type = cluster.type;
         var host = cluster.host;
@@ -1090,7 +1091,7 @@ define([
         } else if (type === "AWS") {
             cmd += "id = " + id + "; type = " + type + "; host = " + host + "; username = " + user + "; password = " + pass + ";\" > $PWD/" + pipeAuth + " & \n";
         }
-        cmd += "stateOut=\"`python3 /usr/local/bin/im_client.py getstate " + clusterId + " -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
+        cmd += "stateOut=\"`python3 /usr/local/bin/im_client.py getstate " + infrastructureID + " -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
     
         cmd += "if [ $? -ne 0 ]; then \n";
         cmd += "    >&2 echo -e $stateOut \n";
@@ -1104,7 +1105,7 @@ define([
         return cmd;
     };
 
-    var clusterIP = function (clusterId) {
+    var clusterIP = function (infrastructureID) {
         var pipeAuth = "auth-pipe";
         var cmd = "%%bash \n";
         cmd += "PWD=`pwd` \n";
@@ -1115,7 +1116,7 @@ define([
         // Command to create the infrastructure manager client credentials
         cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\" > $PWD/" + pipeAuth + " & \n";
 
-        cmd += "ipOut=\"`python3 /usr/local/bin/im_client.py getvminfo " + clusterId + " 0 net_interface.1.ip -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
+        cmd += "ipOut=\"`python3 /usr/local/bin/im_client.py getvminfo " + infrastructureID + " 0 net_interface.1.ip -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
 
         cmd += "if [ $? -ne 0 ]; then \n";
         cmd += "    >&2 echo -e $ipOut \n";
@@ -1147,17 +1148,17 @@ define([
     //*Dialogs handle*//
     //****************//    
 
-    var toggle_DeploymentList = function () {
+    var toggleDeploymentList = function () {
         if ($("#dialog-deployments-list").dialog("isOpen")) {
             $("#dialog-deployments-list").dialog("close");
         } else {
-            create_ListDeployments_dialog(true);
+            creatListDeploymentsDialog(true);
             $("#dialog-deployments-list").dialog("moveToTop");
         }
         Jupyter.notebook.set_dirty();
     }
 
-    var toggle_Deploy = function () {
+    var toggleDeploy = function () {
         if ($("#dialog-deploy").dialog("isOpen")) {
             $("#dialog-deploy").dialog("close");
         } else {
@@ -1171,24 +1172,16 @@ define([
     //* Jupyter handler *//
     //*******************//        
 
-    var load_jupyter_extension = function () {
+    var loadJupyterExtension = function () {
         console.log("Initialize deployment plugin");
-        load_css();
-
-        //Get local yml directory
-        var url = requirejs.toUrl("./templates");
-        templatesURL = location.protocol + '//' + location.host
-            + url.substring(0, url.lastIndexOf('/'))
-            + "/templates";
-        console.log("Templates url: " + templatesURL);
-
-        listDeployments_button();
-        deploy_button();
-        create_ListDeployments_dialog(false);
-        create_Deploy_dialog();
+        loadCSS();
+        listDeploymentsButton();
+        deployButton();
+        creatListDeploymentsDialog(false);
+        createDeployDialog();
     }
 
     return {
-        load_ipython_extension: load_jupyter_extension
+        load_ipython_extension: loadJupyterExtension
     };
 });

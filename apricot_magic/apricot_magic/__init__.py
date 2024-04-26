@@ -19,38 +19,36 @@ class Apricot(Magics):
     #  Auxiliar functions  #
     ########################
     
-    def splitClear(self, line, pattern=' '):
-
+    def split_clear(self, line, pattern=' '):
         if len(line) == 0:
             return []
 
         return list(filter(len,line.split(pattern)))
     
-    def createAuthPipe(self, clusterId):
+    def create_auth_pipe(self, infrastructure_id):
         # Read the JSON data from the file
-        with open('apricot_plugin/clusterList.json') as f:
+        with open('apricot_plugin/infrastructuresList.json') as f:
             data = json.load(f)
 
-        # Find the cluster with the specified ID
-        found_cluster = None
-        for cluster in data['clusters']:
-            if cluster['clusterId'] == clusterId:
-                found_cluster = cluster
+        # Find the infrastructure with the specified ID
+        found_infrastructure = None
+        for infrastructure in data['infrastructures']:
+            if infrastructure['infrastructureID'] == infrastructure_id:
+                found_infrastructure = infrastructure
                 break
 
-        if found_cluster is None:
-            raise ValueError(f"Cluster with ID {clusterId} does not exist.")
+        if found_infrastructure is None:
+            raise ValueError(f"Infrastructure with ID {infrastructure_id} does not exist.")
 
-        # Construct auth-pipe content based on cluster type
+        # Construct auth-pipe content based on infrastructure type
         auth_content = f"type = InfrastructureManager; username = user; password = pass;\n"
-
-        # Construct additional credentials based on cluster type
-        if found_cluster['type'] == "OpenStack":
-            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}; tenant = {found_cluster['tenant']}"
-        elif found_cluster['type'] == "OpenNebula":
-            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}"
-        elif found_cluster['type'] == "AWS":
-            auth_content += f"id = {found_cluster['id']}; type = {found_cluster['type']}; username = {found_cluster['user']}; password = {found_cluster['pass']}; host = {found_cluster['host']}"
+        # Additional credentials based on infrastructure type
+        if found_infrastructure['type'] == "OpenStack":
+            auth_content += f"id = {found_infrastructure['id']}; type = {found_infrastructure['type']}; username = {found_infrastructure['user']}; password = {found_infrastructure['pass']}; host = {found_infrastructure['host']}; tenant = {found_clustfound_infrastructureer['tenant']}"
+        elif found_infrastructure['type'] == "OpenNebula":
+            auth_content += f"id = {found_infrastructure['id']}; type = {found_infrastructure['type']}; username = {found_infrastructure['user']}; password = {found_infrastructure['pass']}; host = {found_infrastructure['host']}"
+        elif found_infrastructure['type'] == "AWS":
+            auth_content += f"id = {found_infrastructure['id']}; type = {found_infrastructure['type']}; username = {found_infrastructure['user']}; password = {found_infrastructure['pass']}; host = {found_infrastructure['host']}"
 
         # Write auth-pipe content to a file
         with open('auth-pipe', 'w') as auth_file:
@@ -58,65 +56,63 @@ class Apricot(Magics):
 
         return
 
-    def generateKey(self, clusterId):
-        """
-        Generates private key and host IP using im_client.py.
-        """
-        
-        # Call im_client.py to get state
-        cmd = [
+    def generate_key(self, infrastructure_id, vm_id):
+        ##########################################
+        #   Generates private key and host IP    #
+        ##########################################
+        private_key_content = None
+        host_ip = None
+
+        cmd_getvminfo = [
             'python3',
             '/usr/local/bin/im_client.py',
-            'getinfo',
-            clusterId,
+            'getvminfo',
+            infrastructure_id,
+            vm_id,
             '-r',
             'https://im.egi.eu/im',
             '-a',
             'auth-pipe',
         ]
 
-        # Execute command and capture output
-        state_output = subprocess.check_output(cmd, universal_newlines=True)
+        try:
+            # Execute command and capture output
+            state_output = subprocess.check_output(cmd_getvminfo, universal_newlines=True)
+            # Split the output by lines
+            state_lines = state_output.split('\n')
 
-        # Split the output by lines
-        state_lines = state_output.split('\n')
+            # Iterate over each line in the output to capture key and host IP
+            private_key_started = False
+            for line in state_lines:
+                if line.strip().startswith("disk.0.os.credentials.private_key ="):
+                    private_key_started = True
+                    private_key_content = line.split(" = ")[1].strip().strip("'") + '\n'
+                    continue
+                # If private key capture has started, capture lines until END RSA PRIVATE KEY
+                if private_key_started:
+                    private_key_content += line + '\n'
+                # Check if the line contains the end of the private key
+                if "END RSA PRIVATE KEY" in line:
+                    private_key_started = False
 
-        # Initialize variables to store the private key content and host IP
-        private_key_content = None
-        hostIP = None
+                if line.strip().startswith("net_interface.1.ip ="):
+                    # Extract the host IP
+                    host_ip = line.split("'")[1].strip()
+                    break
 
-        # Iterate over each line in the output
-        private_key_started = False
-        for line in state_lines:
-            # Check if the line contains the private key information
-            if line.strip().startswith("disk.0.os.credentials.private_key ="):
-                private_key_started = True
-                private_key_content = line.split(" = ")[1].strip().strip("'") + '\n'
-                continue
+            if private_key_content:
+                with open("key.pem", "w") as key_file:
+                    key_file.write(private_key_content)
 
-            # If private key capture has started, capture lines until END RSA PRIVATE KEY
-            if private_key_started:
-                private_key_content += line + '\n'
+                # Change permissions of key.pem to 600
+                os.chmod("key.pem", 0o600)
 
-            # Check if the line contains the end of the private key
-            if "END RSA PRIVATE KEY" in line:
-                private_key_started = False
+            return private_key_content, host_ip
 
-            if line.strip().startswith("net_interface.1.ip ="):
-                # Extract the host IP
-                hostIP = line.split("'")[1].strip()
-                break
-
-        # Check if private key content is found
-        if private_key_content:
-            # Write private key content to a file named key.pem
-            with open("key.pem", "w") as key_file:
-                key_file.write(private_key_content)
-
-            # Change permissions of key.pem to 600
-            os.chmod("key.pem", 0o600)
-
-        return private_key_content, hostIP
+        except subprocess.CalledProcessError as e:
+            # If the subprocess call fails, return the error output
+            error_output = e.output
+            return None, None
 
     ##################
     #     Magics     #
@@ -125,41 +121,48 @@ class Apricot(Magics):
     @line_magic
     def apricot_log(self, line):
         if len(line) == 0:
-            print("Usage: apricot_log infID\n")
+            print("Usage: apricot_log infrastructure-id\n")
             return "Fail"
 
         # Split line
-        words = self.splitClear(line)
-
+        words = self.split_clear(line)
         # Get cluster ID
-        infID = words[0]
+        inf_id = words[0]
 
         try:
-            # Call createAuthPipe method
-            self.createAuthPipe(infID)
+            self.create_auth_pipe(inf_id)
         except ValueError as e:
             print(e)
             return "Failed"
 
-        # Call im_client.py to get log
-        pipes = subprocess.Popen(["python3", "/usr/local/bin/im_client.py", "getcontmsg", "-a", "auth-pipe", "-r", "https://im.egi.eu/im", infID], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        cmd_getcontmsg = [
+            "python3",
+            "/usr/local/bin/im_client.py",
+            "getcontmsg",
+            inf_id,
+            "-a",
+            "auth-pipe",
+            "-r",
+            "https://im.egi.eu/im",
+        ]
+
+        pipes = subprocess.Popen(cmd_getcontmsg, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         std_out, std_err = pipes.communicate()
         std_out = std_out.decode("utf-8")
         std_err = std_err.decode("utf-8")
                 
         if pipes.returncode == 0:
-            #Send output to notebook
-            print( std_out )
+            # Send output to notebook
+            print(std_out)
 
         else:
-            #Send error and output to notebook
-            print( "Status: fail " + str(pipes.returncode) + "\n")
-            print( std_err + "\n")
-            print( std_out )
+            # Send error and output to notebook
+            print("Status: fail " + str(pipes.returncode) + "\n")
+            print(std_err + "\n")
+            print(std_out)
             return "Fail"
 
-        # Check if the file exists and remove it
         if os.path.exists('auth-pipe'):
             os.remove('auth-pipe')
 
@@ -167,61 +170,58 @@ class Apricot(Magics):
 
     @line_magic
     def apricot_ls(self, line):
-        # Read the JSON data from the file
-        with open('apricot_plugin/clusterList.json') as f:
+        infrastructures_list = []
+
+        with open('apricot_plugin/infrastructuresList.json') as f:
             data = json.load(f)
 
-        # Initialize clusters list
-        clusters = []
-
-        # Iterate through each cluster
-        for cluster in data['clusters']:
-            cluster_info = {
-                'Name': cluster['name'],
-                'Cluster ID': cluster['clusterId'],
+        # Iterate through each infrastructure of infrastructuresList.json
+        for infrastructure in data['infrastructures']:
+            infrastructure_info = {
+                'Name': infrastructure['name'],
+                'InfrastructureID': infrastructure['infrastructureID'],
                 'IP': "",
                 'State': ""
             }
 
             try:
-                # Call createAuthPipe method
-                self.createAuthPipe(cluster['clusterId'])
+                self.create_auth_pipe(infrastructure['infrastructureID'])
             except ValueError as e:
                 print(e)
                 return "Failed"
 
-            # Call im_client.py to get state
-            cmdState = [
+            cmd_getstate = [
                 'python3',
                 '/usr/local/bin/im_client.py',
                 'getstate',
-                cluster['clusterId'],
+                infrastructure['infrastructureID'],
                 '-r',
                 'https://im.egi.eu/im',
                 '-a',
                 'auth-pipe',
             ]
 
-            # Execute command and capture output
             try:
-                state_output = subprocess.check_output(cmdState, universal_newlines=True)
-                # Process state output to extract state information
+                # Execute command and capture output
+                state_output = subprocess.check_output(cmd_getstate, universal_newlines=True)
+                # Process state_output to extract state information
                 state_words = state_output.split()
                 state_index = state_words.index("state:") if "state:" in state_words else -1
+
                 if state_index != -1 and state_index < len(state_words) - 1:
                     state = state_words[state_index + 1].strip()
-                    cluster_info['State'] = state
+                    infrastructure_info['State'] = state
                 else:
-                    cluster_info['State'] = "Error: State not found"
-            except subprocess.CalledProcessError as e:
-                cluster_info['State'] = f"Error: {e.output.strip()}"
+                    infrastructure_info['State'] = "Error: State not found"
 
-            # Call im_client.py to get vm info
-            cmdIP = [
+            except subprocess.CalledProcessError as e:
+                infrastructure_info['State'] = f"Error: {e.output.strip()}"
+
+            cmd_getvminfo = [
                 'python3',
                 '/usr/local/bin/im_client.py',
                 'getvminfo',
-                cluster['clusterId'],
+                infrastructure['infrastructureID'],
                 '0',
                 'net_interface.1.ip',
                 '-r',
@@ -230,73 +230,65 @@ class Apricot(Magics):
                 'auth-pipe',
             ]
 
-            # Execute command and capture output
             try:
-                ip_output = subprocess.check_output(cmdIP, universal_newlines=True)
+                # Execute command and capture output
+                ip_output = subprocess.check_output(cmd_getvminfo, universal_newlines=True)
                 # Process output to extract IP information
-                # Check if the output contains an error message
                 if "error" in ip_output.lower():
                     ip = "Error: " + ip_output.strip()
                 else:
-                    # Extract IP address from the output
                     ip = ip_output.split()[-1].strip()
-                cluster_info['IP'] = ip
+
+                infrastructure_info['IP'] = ip
             except subprocess.CalledProcessError as e:
-                cluster_info['IP'] = f"Error: {e.output.strip()}"
+                infrastructure_info['IP'] = f"Error: {e.output.strip()}"
 
-            clusters.append(cluster_info)
+            infrastructures_list.append(infrastructure_info)
 
-        # Convert clusters to a list of lists for tabulate
-        cluster_data = [[cluster['Name'], cluster['Cluster ID'], cluster['IP'], cluster['State']] for cluster in clusters]
+        # Convert infrastructures_list to a list of lists for tabulate
+        infrastructure_data = [[infrastructure['Name'], infrastructure['InfrastructureID'], infrastructure['IP'], infrastructure['State']] for infrastructure in infrastructures_list]
 
         # Print the information as a table using tabulate
-        print(tabulate(cluster_data, headers=['Name', 'Cluster ID', 'IP', 'State'], tablefmt='grid'))
+        print(tabulate(infrastructure_data, headers=['Name', 'Infrastructure ID', 'IP', 'State'], tablefmt='grid'))
         
-        # Check if the file exists and remove it
         if os.path.exists('auth-pipe'):
             os.remove('auth-pipe')
 
         return
 
     @line_magic
-    def apricot_nodels(self, line):
+    def apricot_vmls(self, line):
         if len(line) == 0:
-            print("Usage: nodels clusterID\n")
+            print("Usage: apricot_vmls infrastructure-id\n")
             return "Fail"
 
         # Split line
-        words = self.splitClear(line)
+        words = self.split_clear(line)
+        # Get infrastructure ID
+        inf_id = words[0]
 
-        # Get cluster ID
-        infID = words[0]
+        vm_info_list = []
+        current_vm_id, ip_address, status, provider_type, os_image = None, None, None, None, None
 
         try:
-            # Call createAuthPipe method
-            self.createAuthPipe(infID)
+            self.create_auth_pipe(inf_id)
         except ValueError as e:
             print(e)
             return "Failed"
 
-        # Call im_client.py to get state
-        cmd = [
+        cmd_getinfo = [
             'python3',
             '/usr/local/bin/im_client.py',
             'getinfo',
-            infID,
+            inf_id,
             '-r',
             'https://im.egi.eu/im',
             '-a',
             'auth-pipe',
         ]
 
-        # Initialize a list to store VM information
-        vm_info_list = []
-
-        current_vm_id, ip_address, status, provider_type, os_image = None, None, None, None, None
-        
         # Execute command and capture output
-        state_output = subprocess.check_output(cmd, universal_newlines=True)
-
+        state_output = subprocess.check_output(cmd_getinfo, universal_newlines=True)
         # Split the output by lines
         state_lines = state_output.split('\n')
 
@@ -327,7 +319,6 @@ class Apricot(Magics):
         # Print the information as a table using tabulate
         print(tabulate(vm_info_list, headers=['VM ID', 'IP Address', 'Status', 'Provider', 'OS Image'], tablefmt='grid'))
         
-        # Clean up auth-pipe file after processing
         if os.path.exists('auth-pipe'):
             os.remove('auth-pipe')
         
@@ -341,7 +332,7 @@ class Apricot(Magics):
     #         return "fail"
 
     #     #Split line
-    #     words = self.splitClear(line)
+    #     words = self.split_clear(line)
     #     if len(words) < 2:
     #         print("usage: apricot_onedata clustername instruction parameters...\n")
     #         print("Valid instructions are: mount, umount, download, upload, set-token, get-token, set-host, get-host")
@@ -428,7 +419,7 @@ class Apricot(Magics):
     # def apricot_runOn(self, line):
     #     if len(line) == 0:
     #         return "fail"
-    #     words = self.splitClear(line)
+    #     words = self.split_clear(line)
     #     if len(words) < 3:
     #         print("usage: apricot_runOnAll clustername node-list command")
     #         return "fail"
@@ -448,7 +439,7 @@ class Apricot(Magics):
             return "fail"
 
         #Split line
-        words = self.splitClear(line)
+        words = self.split_clear(line)
         
         if len(words) < 5:
             print("usage: apricot_MPI clustername node_number tasks_number remote/path/to/execute romete/path/to/executable arguments")
@@ -490,41 +481,41 @@ class Apricot(Magics):
     @line_magic
     def apricot_upload(self, line):
         if len(line) == 0:
-            print("Usage: upload clusterId file1 file2 ... fileN remote-destination-path\n")
-            return "fail"
-        words = self.splitClear(line)
-        if len(words) < 3:
-            print("Usage: upload clusterId file1 file2 ... fileN remote-destination-path\n")
-            return "fail"
+            print("Usage: apricot_upload infrastructure-id vm-id file1 file2 ... fileN remote-destination-path\n")
+            return "Fail"
+        words = self.split_clear(line)
+        if len(words) < 4:
+            print("Usage: apricot_upload infrastructure-id vm-id file1 file2 ... fileN remote-destination-path\n")
+            return "Fail"
 
-        # Get cluster id
-        clusterId = words[0]
+        inf_id = words[0]
+        vm_id = words[1]
         destination = words[len(words) - 1]
-        files = words[1:-1]
+        files = words[2:-1]
 
         try:
-            # Call createAuthPipe method
-            self.createAuthPipe(clusterId)
+            self.create_auth_pipe(inf_id)
         except ValueError as e:
             print(e)
             return "Failed"
 
         # Call createKey function to extract private key content and host IP
-        private_key_content, hostIP = self.generateKey(clusterId)
+        private_key_content, hostIP = self.generate_key(inf_id, vm_id)
 
         if private_key_content:
-            # Initialize the SCP command
-            cmd2 = ['scp', '-i', 'key.pem']
-
-        # Add each file to the SCP command
+            cmd_scp = [
+                'scp',
+                '-i',
+                'key.pem',
+            ]
+        # Add each file to the scp command
         for file in files:
-            cmd2.extend([file])
+            cmd_scp.extend([file])
+        # Add the destination path to the scp command
+        cmd_scp.append(f'root@{hostIP}:{destination}')
 
-        # Add the destination path to the SCP command
-        cmd2.append(f'root@{hostIP}:{destination}')
-
-        # Execute SCP command
-        pipes = subprocess.Popen(cmd2, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # Execute scp command and capture output
+        pipes = subprocess.Popen(cmd_scp, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         std_out, std_err = pipes.communicate()
         std_out = std_out.decode("utf-8")
@@ -532,14 +523,12 @@ class Apricot(Magics):
                 
         if pipes.returncode == 0:
             #Send output to notebook
-            print( std_out )
+            print(std_out)
 
         else:
             #Send error and output to notebook
-            print( std_err + "\n")
-            print( std_out )
+            print(std_err + "\n")
 
-        # Check if the files exist and remove them
         if os.path.exists('auth-pipe'):
             os.remove('auth-pipe')
         if os.path.exists('key.pem'):
@@ -550,41 +539,41 @@ class Apricot(Magics):
     @line_magic
     def apricot_download(self, line):
         if len(line) == 0:
-            print("Usage: download clusterId file1 file2 ... fileN local-destination-path\n")
+            print("Usage: apricot_download infrastructure-id vm-id file1 file2 ... fileN local-destination-path\n")
             return "Fail"
-        words = self.splitClear(line)
-        if len(words) < 3:
-            print("Usage: download clusterId file1 file2 ... fileN local-destination-path\n")
+        words = self.split_clear(line)
+        if len(words) < 4:
+            print("Usage: apricot_download infrastructure-id vm-id file1 file2 ... fileN local-destination-path\n")
             return "Fail"
 
-        # Get cluster id
-        clusterId = words[0]
+        inf_id = words[0]
+        vm_id = words[1]
         destination = words[len(words) - 1]
-        files = words[1:-1]
+        files = words[2:-1]
 
         try:
-            # Call createAuthPipe method
-            self.createAuthPipe(clusterId)
+            self.create_auth_pipe(inf_id)
         except ValueError as e:
             print(e)
             return "Failed"
 
         # Call createKey function to extract private key content and host IP
-        private_key_content, hostIP = self.generateKey(clusterId)
+        private_key_content, hostIP = self.generate_key(inf_id, vm_id)
 
         if private_key_content:
-            # Initialize the SCP command
-            cmd2 = ['scp', '-i', 'key.pem']
-
-        # Add each file to the SCP command
+            cmd_scp = [
+                'scp',
+                '-i',
+                'key.pem',
+            ]
+        # Add each file to the scp command
         for file in files:
-            cmd2.extend(['root@' + hostIP + ':' + file])
+            cmd_scp.extend(['root@' + hostIP + ':' + file])
+        # Add the destination path to the scp command
+        cmd_scp.append(destination)
 
-        # Add the destination path to the SCP command
-        cmd2.append(destination)
-
-        # Execute SCP command
-        pipes = subprocess.Popen(cmd2, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # Execute scp command
+        pipes = subprocess.Popen(cmd_scp, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         std_out, std_err = pipes.communicate()
         std_out = std_out.decode("utf-8")
@@ -595,9 +584,8 @@ class Apricot(Magics):
             print(std_out)
         else:
             #Send error and output to notebook
-            print( std_err + "\n")
+            print(std_err + "\n")
 
-        # Check if the files exist and remove them
         if os.path.exists('auth-pipe'):
             os.remove('auth-pipe')
         if os.path.exists('key.pem'):
@@ -609,7 +597,7 @@ class Apricot(Magics):
     def apricot(self, code, cell=None):
         #Check if is a cell call
         if cell != None:
-            lines = self.splitClear(cell,'\n')
+            lines = self.split_clear(cell,'\n')
             for line in lines:
                 if len(line) > 0:
                     if self.apricot(line, None) != "Done":
@@ -620,43 +608,43 @@ class Apricot(Magics):
         if len(code) == 0:
             return "Fail"
 
-        words = self.splitClear(code)
+        words = self.split_clear(code)
         #Get first word
         word1 = words[0]
         #Get user command
-        userCMD = ""
+        user_cmd = ""
         if len(words) > 1:
-            userCMD = " ".join(words[1:])
+            user_cmd = " ".join(words[1:])
 
         if word1 == "exec" or word1 == "execAsync":
                 
             if len(words) < 3:
-                print("Incomplete instruction: " + "'" + code + "' \n 'exec' format is: 'exec cluster-id vm-id instruction'" )
+                print("Incomplete instruction: " + "'" + code + "' \n 'exec' format is: 'exec infrastructure-id vm-id cmd-command'" )
                 return "Fail"
             else:
-                #Get cluster ID
-                clusterId = words[1]
-                #Get VM ID
-                vmId = words[2]
-                #Get command to execute at cluster
-                clusterCMD = words[3:]
+                inf_id = words[1]
+                vm_id = words[2]
+                cmd_command = words[3:]
 
                 try:
-                    # Call createAuthPipe method
-                    self.createAuthPipe(clusterId)
+                    self.create_auth_pipe(inf_id)
                 except ValueError as e:
                     print(e)
                     return "Failed"
 
                 # Call createKey function to extract private key content and host IP
-                private_key_content, hostIP = self.generateKey(clusterId)
+                private_key_content, host_ip = self.generate_key(inf_id, vm_id)
 
                 if private_key_content:
-                    # Initialize the SSH command
-                    ssh_cmd = ['ssh', '-i', 'key.pem', 'root@' + hostIP] + clusterCMD
+                    cmd_ssh = [
+                        'ssh',
+                        '-i',
+                        'key.pem',
+                        'root@' + host_ip,
+                    ] + cmd_command
 
-                    # Execute SSH command
-                    pipes = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    # Execute ssh command
+                    pipes = subprocess.Popen(cmd_ssh, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
                     # Capture the output and error of the command
                     ssh_instruct, std_err = pipes.communicate()
@@ -664,20 +652,19 @@ class Apricot(Magics):
                     std_err = std_err.decode("utf-8")
 
                     if pipes.returncode == 0:
-                        # Send instruction
-                        split_result = self.splitClear(ssh_instruct, "\n")
+                        split_result = self.split_clear(ssh_instruct, "\n")
                         if split_result:
                             ssh_instruct = split_result[0]
                         else:
                             ssh_instruct = ""
 
-                        split_result = self.splitClear(ssh_instruct)
+                        split_result = self.split_clear(ssh_instruct)
                         if split_result:
                             ssh_instruct = split_result
                         else:
                             ssh_instruct = []
 
-                        pipes = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        pipes = subprocess.Popen(cmd_ssh, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
                         #Check if the call is asyncronous
                         if word1 == "execAsync":
@@ -689,7 +676,6 @@ class Apricot(Magics):
 
                         print(std_out)
 
-                        # Check if the files exist and remove them
                         if os.path.exists('auth-pipe'):
                             os.remove('auth-pipe')
                         if os.path.exists('key.pem'):
@@ -698,11 +684,9 @@ class Apricot(Magics):
                         return "Done"
                     else:
                         #Send error and output to notebook
-                        print( "Status: fail " + str(pipes.returncode) + "\n")
-                        print( std_err + "\n")
-                        print( std_out )
+                        print("Status: fail " + str(pipes.returncode) + "\n")
+                        print(std_err + "\n")
 
-                        # Check if the files exist and remove them
                         if os.path.exists('auth-pipe'):
                             os.remove('auth-pipe')
                         if os.path.exists('key.pem'):
@@ -711,33 +695,31 @@ class Apricot(Magics):
                         return "Fail"
                 else:
                     #Send error to notebook
-                    print( "Status: fail " + str(pipes.returncode) + "\n")
-                    print( std_err + "\n" + ssh_instruct)
-                    print( "\nCheck if cluster ID '" + clusterId + "' exists\n" )
+                    print("\nMissing infrastructure ID or VM ID\n")
                     return "Fail"
                 
         elif word1 == "list":
             self.apricot_ls(code)
 
         elif word1 == "destroy":
-            if len(words) != 2:  # Check if only one argument is provided (the cluster ID)
-                print("Usage: destroy clusterId")
+            # Check if only one argument is provided (the infrastructure ID)
+            if len(words) != 2:
+                print("Usage: destroy infrastructure-id")
                 return "Fail"
             else:
-                clusterId = words[1]  # Use the provided cluster ID directly
+                inf_id = words[1]
 
                 try:
-                    # Call createAuthPipe method
-                    self.createAuthPipe(clusterId)
+                    self.create_auth_pipe(inf_id)
                 except ValueError as e:
                     print(e)
                     return "Failed"
 
-                destroyCMD = [
+                cmd_destroy = [
                     'python3',
                     '/usr/local/bin/im_client.py',
                     'destroy',
-                    clusterId,
+                    inf_id,
                     '-r',
                     'https://im.egi.eu/im',
                     '-a',
@@ -745,7 +727,7 @@ class Apricot(Magics):
                 ]
 
                 # Execute command and capture output
-                process = subprocess.Popen(destroyCMD, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                process = subprocess.Popen(cmd_destroy, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 print("Destroying...\nPlease wait, this may take a few seconds.", end='', flush=True)
 
                 log, std_err = process.communicate()
@@ -760,28 +742,26 @@ class Apricot(Magics):
                 if std_err:
                     print(std_err)
 
-                # Load cluster list from JSON file
-                with open('apricot_plugin/clusterList.json', 'r') as f:
+                # Load infrastructure list from JSON file
+                with open('apricot_plugin/infrastructuresList.json', 'r') as f:
                     data = json.load(f)
 
-                # Find and remove the cluster with the specified ID
-                for cluster in data['clusters']:
-                    if cluster['clusterId'] == clusterId:
-                        data['clusters'].remove(cluster)
+                # Find and remove the infrastructure with the specified ID
+                for infrastructure in data['infrastructures']:
+                    if infrastructure['infrastructureID'] == inf_id:
+                        data['infrastructures'].remove(infrastructure)
                         break
 
-                # Write the updated cluster list back to the JSON file
-                with open('apricot_plugin/clusterList.json', 'w') as f:
+                # Write the updated infrastructure list back to the JSON file
+                with open('apricot_plugin/infrastructuresList.json', 'w') as f:
                     json.dump(data, f, indent=4)
 
-                # Check if the file exists and remove it
                 if os.path.exists('auth-pipe'):
                     os.remove('auth-pipe')
 
                 return "Done"
         
         return
-
 
 def load_ipython_extension(ipython):
     ipython.register_magics(Apricot)

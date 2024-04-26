@@ -547,11 +547,11 @@ class Apricot(Magics):
     def apricot_download(self, line):
         if len(line) == 0:
             print("Usage: download clusterId file1 file2 ... fileN local-destination-path\n")
-            return "fail"
+            return "Fail"
         words = self.splitClear(line)
         if len(words) < 3:
             print("Usage: download clusterId file1 file2 ... fileN local-destination-path\n")
-            return "fail"
+            return "Fail"
 
         # Get cluster id
         clusterId = words[0]
@@ -643,29 +643,73 @@ class Apricot(Magics):
         if word1 == "exec" or word1 == "execAsync":
                 
             if len(words) < 3:
-                print("Incomplete instruction: " + "'" + code + "' \n 'exec' format is: 'exec cluster-name instruction'" )
+                print("Incomplete instruction: " + "'" + code + "' \n 'exec' format is: 'exec cluster-id vm-id instruction'" )
                 return "Fail"
             else:
                 #Get cluster ID
                 clusterId = words[1]
+
+                #Get VM ID
+                vmId = words[2]
                 
                 #Get command to execute at cluster
-                clusterCMD = words[2:]
-                
-                #Get ssh instruction to execute on cluster
-                pipes = subprocess.Popen(["ec3","ssh","--show-only", clusterId], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                        
-                ssh_instruct, std_err = pipes.communicate()                
-                ssh_instruct = ssh_instruct.decode("utf-8")
-                std_err = std_err.decode("utf-8")
+                clusterCMD = words[3:]
 
-                if pipes.returncode == 0:
-                        
-                    #Send instruction
-                    ssh_instruct = self.splitClear(ssh_instruct,"\n")[0]
-                    ssh_instruct = self.splitClear(ssh_instruct)
-                    ssh_instruct.extend(clusterCMD)
-                    pipes = subprocess.Popen(ssh_instruct, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                try:
+                    # Call createAuthPipe method
+                    self.createAuthPipe(clusterId)
+                except ValueError as e:
+                    print(e)
+                    return "Failed"
+
+                # Call im_client.py to get state
+                cmdState = [
+                    'python3',
+                    '/usr/local/bin/im_client.py',
+                    'getinfo',
+                    clusterId,
+                    '-r',
+                    'https://im.egi.eu/im',
+                    '-a',
+                    'auth-pipe',
+                ]
+
+                # Execute command and capture output
+                state_output = subprocess.check_output(cmdState, universal_newlines=True)
+
+                # Split the output by lines
+                state_lines = state_output.split('\n')
+
+                # Call createKey function to extract private key content and host IP
+                private_key_content, hostIP = self.generateKey(state_lines)
+
+                if private_key_content:
+                    # Initialize the SSH command
+                    ssh_cmd = ['ssh', '-i', 'key.pem', 'root@' + hostIP] + clusterCMD
+
+                    # Execute SSH command
+                    pipes = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+                    # Capture the output and error of the command
+                    ssh_instruct, std_err = pipes.communicate()
+                    ssh_instruct = ssh_instruct.decode("utf-8")
+                    std_err = std_err.decode("utf-8")
+
+                    if pipes.returncode == 0:
+                        # Send instruction
+                        split_result = self.splitClear(ssh_instruct, "\n")
+                        if split_result:
+                            ssh_instruct = split_result[0]
+                        else:
+                            ssh_instruct = ""
+
+                        split_result = self.splitClear(ssh_instruct)
+                        if split_result:
+                            ssh_instruct = split_result
+                        else:
+                            ssh_instruct = []
+
+                        pipes = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
                     #Check if the call is asyncronous
                     if word1 == "execAsync":
@@ -678,11 +722,26 @@ class Apricot(Magics):
                     if pipes.returncode == 0:
                         #Send output to notebook
                         print( std_out )
+
+                        # Check if the files exist and remove them
+                        if os.path.exists('auth-pipe'):
+                            os.remove('auth-pipe')
+                        if os.path.exists('key.pem'):
+                            os.remove('key.pem')
+
+                        return "Done"
                     else:
                         #Send error and output to notebook
                         print( "Status: fail " + str(pipes.returncode) + "\n")
                         print( std_err + "\n")
                         print( std_out )
+
+                        # Check if the files exist and remove them
+                        if os.path.exists('auth-pipe'):
+                            os.remove('auth-pipe')
+                        if os.path.exists('key.pem'):
+                            os.remove('key.pem')
+
                         return "Fail"
                 else:
                     #Send error to notebook

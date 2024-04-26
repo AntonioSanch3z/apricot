@@ -711,17 +711,15 @@ class Apricot(Magics):
 
                         pipes = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-                    #Check if the call is asyncronous
-                    if word1 == "execAsync":
-                        return pipes
+                        #Check if the call is asyncronous
+                        if word1 == "execAsync":
+                            return pipes
                     
-                    std_out, std_err = pipes.communicate()
-                    std_out = std_out.decode("utf-8")
-                    std_err = std_err.decode("utf-8")
-                
-                    if pipes.returncode == 0:
-                        #Send output to notebook
-                        print( std_out )
+                        std_out, std_err = pipes.communicate()
+                        std_out = std_out.decode("utf-8")
+                        std_err = std_err.decode("utf-8")
+
+                        print(std_out)
 
                         # Check if the files exist and remove them
                         if os.path.exists('auth-pipe'):

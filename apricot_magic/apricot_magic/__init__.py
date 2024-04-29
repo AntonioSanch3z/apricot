@@ -324,160 +324,6 @@ class Apricot(Magics):
         
         return
 
-    # @line_magic
-    # def apricot_onedata(self,line):
-    #     if len(line) == 0:
-    #         print("usage: apricot_onedata clustername instruction parameters...\n")
-    #         print("Valid instructions are: mount, umount, download, upload, set-token, get-token, set-host, get-host")
-    #         return "fail"
-
-    #     #Split line
-    #     words = self.split_clear(line)
-    #     if len(words) < 2:
-    #         print("usage: apricot_onedata clustername instruction parameters...\n")
-    #         print("Valid instructions are: mount, umount, download, upload, set-token, get-token, set-host, get-host")
-    #         return "fail"
-
-    #     #Get cluster name
-    #     clusterName = words[0]
-
-    #     #Get instruction
-    #     instruction = words[1]
-
-    #     if instruction == "set-token":
-    #         if len(words) < 3:
-    #             print("No token specified")
-    #             return "fail"
-    #         oneDataToken = words[3]
-    #     elif instruction == "get-token":
-    #         return oneDataToken
-    #     elif instruction == "set-host":
-    #         if len(words) < 3:
-    #             print("No host specified")
-    #             return "fail"
-    #         oneDataHost = words[3]
-    #     elif instruction == "get-host":
-    #         return oneDataHost
-    #     elif instruction == "mount":
-
-    #         if len(words) < 3:
-    #             print("No mount point specified")
-    #             return "fail"
-
-    #         #Create directory to mount specified space
-    #         if words[2][0] == '/':
-    #             mountPoint = words[2]                
-    #         else:
-    #             mountPoint = self.oneDataStore + words[2]
-
-    #         self.apricot("exec " + clusterName + " rm -r " + mountPoint + "&> /dev/null")
-    #         status = self.apricot("exec " + clusterName + " mkdir " + mountPoint)
-    #         if status != "done":
-    #             print("Unable to create directory: " + mountPoint)
-    #             return "fail"
-                
-            
-    #         if len(words) < 4:
-    #             return self.apricot("exec " + clusterName + " oneclient -H " + oneDataHost + " -t " + oneDataToken + " " + mountPoint)
-    #         if len(words) < 5:
-    #             return self.apricot("exec " + clusterName + " oneclient -H " + words[3] + " -t " + oneDataToken + " " + mountPoint)
-    #         else:
-    #             return self.apricot("exec " + clusterName + " oneclient -H " + words[3] + " -t " + words[4] + " " + mountPoint)
-
-    #     elif instruction == "umount":
-    #         if len(words) < 3:
-    #             print("No mount point specified")
-    #             return "fail"
-    #         return self.apricot("exec " + clusterName + " oneclient -u " + words[2])
-
-    #     elif instruction == "download" or instruction == "upload":
-    #         if len(words) < 4:
-    #             print("usage: apricot_onedata clusterName cp onedataPath localPath")
-    #             return "fail"
-
-            
-    #         if instruction == "download":
-    #             origin = self.oneDataStore + words[2]
-    #             destin = words[3]
-    #         else:
-    #             origin = words[2]
-    #             destin = self.oneDataStore + words[3]
-                
-    #         #Try to copy file from/to already mounted space
-    #         status = self.apricot("exec " + clusterName + " cp " + origin + " " + destin)
-
-    #         if status != "done":
-    #             return "fail"                
-    #         else:
-    #             return "done"
-        
-    #     else:
-    #         print("Unknown instruction")
-    #         return "fail"
-
-    # @line_magic
-    # def apricot_runOn(self, line):
-    #     if len(line) == 0:
-    #         return "fail"
-    #     words = self.split_clear(line)
-    #     if len(words) < 3:
-    #         print("usage: apricot_runOnAll clustername node-list command")
-    #         return "fail"
-            
-    #     #Get cluster name
-    #     clusterName = words[0]
-    #     nodeList = words[1]
-    #     command = ' '.join(words[2:])
-    
-    #     return self.apricot("exec " + clusterName + " srun -w " + nodeList + " " + command)
-
-    # @line_magic
-    # def apricot_MPI(self,line):
-
-        if len(line) == 0:
-            print("usage: apricot_MPI clustername node_number tasks_number remote/path/to/execute romete/path/to/executable arguments")
-            return "fail"
-
-        #Split line
-        words = self.split_clear(line)
-        
-        if len(words) < 5:
-            print("usage: apricot_MPI clustername node_number tasks_number remote/path/to/execute romete/path/to/executable arguments")
-            return "fail"
-        
-
-        #Get cluster name
-        clusterName = words[0]
-
-        #Get number of nodes to use
-        nodes2use = int(words[1])
-        if nodes2use <= 0:
-            print("Invalid node number")
-            return "fail"
-
-        #Get number of tasks to execute
-        ntasks = int(words[2])
-        if ntasks <= 0:
-            print("Invalid task number")
-            return "fail"
-        
-        #Get execution path
-        execPath = words[3]        
-        
-        #Get program path
-        executablePath = words[4]
-        
-        #Get arguments
-        arguments = ""
-        if len(line) > 5:
-            for word in words[5:]:
-                arguments += word
-        
-        command = "exec " + clusterName + " cd " + execPath + " && salloc -N " + str(nodes2use) + " mpirun -n " + str(ntasks) + " --mca btl_base_warn_component_unused 0 " + executablePath + " " + arguments
-        if self.apricot(command) != "done":
-            return "fail"        
-        return "done"
-   
     @line_magic
     def apricot_upload(self, line):
         if len(line) == 0:
@@ -765,3 +611,19 @@ class Apricot(Magics):
 
 def load_ipython_extension(ipython):
     ipython.register_magics(Apricot)
+
+# EGI FedCloud specific parameters (https://imdocs.readthedocs.io/en/latest/client.html#egi-fedcloud-specific-parameters)
+# To use the EGI CheckIn to authenticate with a Keystone server properly configured the parameters are the following (see more info at EGI Documentation):
+
+# username: egi.eu.
+
+# tenant: openid.
+
+# password: Specifies the EGI CheckIn access token.
+
+# domain: Specifies the OpenStack project to use. This parameter is optional. If not set the first project returned by Keystone will be selected.
+
+# So the auth line will be like that:
+
+# id = ost; type = OpenStack; host = https://ostserver:5000; username = egi.eu; tenant = openid; password = egi_aai_token_value; auth_version = 3.x_oidc_access_token; domain = project_name
+# User should only provide host and password (the token from https://github.com/ai4os/ai4-compose/blob/main/elyra/nodes/get_egi_token.py). If there is a file with the token, EGI button appears. If there is no file, the button wont appear

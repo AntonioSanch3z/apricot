@@ -1,12 +1,39 @@
-table {
+.deployments-table {
+  border: 1px solid black;
   border-collapse: collapse;
+  width: 100%;
 }
-
-table, td, th {
+/* table, td, th {
   border: 1px solid black;
   padding-left: 10px;
   padding-right: 10px;
+} 
+.btn-custom { 
+  background-color: #EF8200;
+  color: #EF8200;
 }
+*/
+
+.deployments-table th,
+.deployments-table td {
+  padding: 8px;
+  text-align: left;
+  border-bottom: 1px solid black;
+}
+
+.deployments-table th {
+  font-weight: bold;
+}
+
+.deployments-table tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+.deployments-table tr:hover {
+  background-color: #ddd;
+}
+
+
 
 ul {
   padding-inline-start: 0%;

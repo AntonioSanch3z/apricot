@@ -1,5 +1,5 @@
-define([    
-    'require', 
+define([
+    'require',
     'jquery',
     'base/js/namespace',
     'base/js/events',
@@ -18,15 +18,16 @@ define([
     //* Global variables *//
     //********************//
 
+    var Kernel = Jupyter.notebook.kernel;
     var prefix = "infrastructure-deployment";
-    var applications = [];
+    var childs = [];
     var deployInfo = {};
     var deploying = false; //Stores if the notebook is deploying something
 
     var clearDeployInfo = function () {
-        var apps = [];
-        if (typeof deployInfo.apps != undefined) {
-            apps = deployInfo.apps;
+        var childs = [];
+        if (typeof deployInfo.childs != undefined) {
+            childs = deployInfo.childs;
         }
 
         var recipe = ""
@@ -43,7 +44,7 @@ define([
             "user": "asanchez",
             "credential": "RamsesOpenNebula9",
             "port": "",
-            "infName": "cluster-name",
+            "infName": "infra-name",
             "worker": {
                 "num_instances": 1,
                 "num_cpus": 1,
@@ -52,9 +53,9 @@ define([
                 "num_gpus": 1,
                 "image": "",
             },
-            "apps": apps,
+            "childs": childs,
         }
-    }
+    };
 
     var loadCSS = function () {
         console.log("Loading css");
@@ -63,18 +64,18 @@ define([
         link.rel = "stylesheet";
         link.href = requirejs.toUrl("./main.css");
         document.getElementsByTagName("head")[0].appendChild(link);
-    }
+    };
 
     var createTable = function (data) {
         var table = $("<table>").addClass("deployments-table");
         var headerRow = $("<tr>");
-    
+
         // Create table headers based on the keys of the data object
         for (var key in data) {
             headerRow.append($("<th>").text(key));
         }
         table.append(headerRow);
-    
+
         // Iterate over the clusters data and create table rows
         for (var i = 0; i < data["Name"].length; i++) {
             var row = $("<tr>");
@@ -101,30 +102,72 @@ define([
         if ($("#listDeploymentsButton").length === 0) {
             Jupyter.toolbar.add_buttons_group([
                 Jupyter.actions.register({
-                    "help": "List of deployed infrastructures",
+                    "help": "Deployed infrastructures",
                     "icon": "fa-th-list",
-                    "handler": toggleDeploymentList,
+                    "handler": toggleListDeploymentsDialog,
                 }, "toggle-deployment-list", prefix)
             ]);
         }
     };
 
-    var deployButton = function () {
-        console.log("Creating deploy button");
+    var deployMenuButton = function () {
+        console.log("Creating deploy menu button");
         if (!Jupyter.toolbar) {
-            events.on("app_initialized.NotebookApp", deployButton);
+            events.on("app_initialized.NotebookApp", deployMenuButton);
             return;
         }
         clearDeployInfo();
 
-        if ($("#deployButton").length === 0) {
+        if ($("#deployMenuButton").length === 0) {
             Jupyter.toolbar.add_buttons_group([
                 Jupyter.actions.register({
-                    "help": "Infrastructure deployment menu",
+                    "help": "Infrastructure deployment",
                     "icon": "fal fa-sitemap",
-                    "handler": toggleDeploy,
+                    "handler": toggleDeployDialog,
                 }, "toggle-deploy", prefix)
             ]);
+        }
+    };
+
+    //********************//
+    //* Dialogs handlers *//
+    //********************//    
+
+    var toggleDeployDialog = function () {
+        if ($("#dialog-deploy").dialog("isOpen")) {
+            $("#dialog-deploy").dialog("close");
+        } else {
+            $("#dialog-deploy").dialog("open");
+            $("#dialog-deploy").dialog("moveToTop");
+        }
+        Jupyter.notebook.set_dirty();
+    };
+
+    var toggleListDeploymentsDialog = function () {
+        if ($("#dialog-deployments-list").dialog("isOpen")) {
+            $("#dialog-deployments-list").dialog("close");
+        } else {
+            createListDeploymentsDialog(true);
+            $("#dialog-deployments-list").dialog("moveToTop");
+        }
+        Jupyter.notebook.set_dirty();
+    };
+
+    var createOrUpdateDialog = function (table, show) {
+        // Check if dialog has been already created
+        if ($("#dialog-deployments-list").length == 0) {
+            var listDeployment_dialog = $('<div id="dialog-deployments-list" title="Deployments list">')
+                .append(table);
+            $("body").append(listDeployment_dialog);
+            $("#dialog-deployments-list").dialog();
+        } else {
+            // Clear dialog
+            $("#dialog-deployments-list").empty();
+            $("#dialog-deployments-list").append(table);
+            $("#dialog-deployments-list").dialog("open");
+        }
+        if (show == false) {
+            $("#dialog-deployments-list").dialog("close");
         }
     };
 
@@ -132,48 +175,46 @@ define([
     //*   Dialogs    *//
     //****************//
 
-    var creatListDeploymentsDialog = function (show) {
+    var createListDeploymentsDialog = function (show) {
         //If kernel is not available, call the function again when it is available
         if (typeof Jupyter.notebook.kernel == "undefined" || Jupyter.notebook.kernel == null) {
             events.on("kernel_ready.Kernel", function (evt, data) {
-                creatListDeploymentsDialog(show);
+                createListDeploymentsDialog(show);
             });
             return;
         }
-        console.log("Creating deployments list window");
+
+        var cmdCatList = "cat apricot_plugin/infrastructuresList.json";
 
         // Get cluster list 
-        var callbacks = {
+        var callbackStateAndIP = {
             iopub: {
                 output: function (data) {
-                    // Check message
-                    var check = checkStream(data);
-                    console.log("check", check);
-                    console.log("data", data);
-                    if (check < 0) return; // Not a stream
-                    if (check > 0) { // Error message
-                        alert("alert", data.content.text);
-                        return;
-                    }
-
-                    // Successfully execution
-                    console.log("Received:");
-                    console.log(data.content.text);
+                    // // Check message
+                    // var check = checkStream(data);
+                    // console.log("check", check);
+                    // console.log("data", data);
+                    // if (check < 0) return; // Not a stream
+                    // if (check > 0) { // Error message
+                    //     alert("alert", data.content.text);
+                    //     return;
+                    // }
 
                     // Parse data
                     var words = data.content.text.split(" ");
                     console.log("words", words);
-                    var lists = {};
-                    lists["Name"] = [];
-                    lists["ID"] = [];
-                    lists["IP"] = [];
-                    lists["State"] = [];
 
-                    // Load cluster list from file using AJAX
-                    $.get('apricot_plugin/infrastructuresList.json";', function (clusterList) {
-                        if (clusterList.clusters.length === 0) {
-                            // If cluster list is empty, create an empty table
-                            var table = createTable(lists);
+                    var tableList = {};
+                    tableList["Name"] = [];
+                    tableList["ID"] = [];
+                    tableList["IP"] = [];
+                    tableList["State"] = [];
+
+                    // Load infrastructure list using AJAX
+                    $.get('apricot_plugin/infrastructuresList.json', function (infraList) {
+                        if (infraList.infrastructures.length === 0) {
+                            // If infrastructure list is empty, create an empty table
+                            var table = createTable(tableList);
                             createOrUpdateDialog(table, show);
                             return;
                         }
@@ -182,42 +223,41 @@ define([
                         var completedStates = 0;
                         var completedIPs = 0;
 
-                        // Iterate through each cluster
-                        for (let i = 0; i < clusterList.clusters.length; i++) {
-                            var cluster = clusterList.clusters[i];
-                            lists.Name.push(cluster.name);
-                            lists.ID.push(cluster.infrastructureID);
+                        // Iterate through each infrastructure to get its state
+                        for (let i = 0; i < infraList.infrastructures.length; i++) {
+                            var infrastructure = infraList.infrastructures[i];
+                            tableList.Name.push(infrastructure.name);
+                            tableList.ID.push(infrastructure.infrastructureID);
 
-                            // Call clusterState function for each cluster
-                            var stateCmd = clusterState(cluster);
-                            console.log("stateCmd", stateCmd);
-                            var stateCallbacks = {
+                            var cmdState = infrastructureState(infrastructure);
+                            console.log("cmdState", cmdState);
+                            var callbackState = {
                                 // Callback function to handle state output
                                 iopub: {
                                     output: function (stateData) {
-                                        var stateCheck = checkStream(stateData);
-                                        console.log("stateCheck", stateCheck);
-                                        if (stateCheck < 0) return; // Not a stream
-                                        if (stateCheck > 0) { // Error message or contains "error"
-                                            // If it does, display the entire output as an error message
-                                            lists.State.push(stateData.content.text);
-                                            // return;
-                                        }
+                                        // var stateCheck = checkStream(stateData);
+                                        // console.log("stateCheck", stateCheck);
+                                        // if (stateCheck < 0) return; // Not a stream
+                                        // if (stateCheck > 0) { // Error message or contains "error"
+                                        //     // If it does, display the entire output as an error message
+                                        //     tableList.State.push(stateData.content.text);
+                                        //     // return;
+                                        // }
                                         // Successfully execution
                                         var stateWords = stateData.content.text.split(" ");
                                         console.log("stateWords", stateWords);
                                         var stateIndex = stateWords.indexOf("state:");
                                         console.log("stateIndex", stateIndex);
                                         if (stateIndex !== -1 && stateIndex < stateWords.length - 1) {
-                                            var state = stateWords[stateIndex + 1].trim(); // Trim to remove extra spaces
-                                            lists.State.push(state);
+                                            var state = stateWords[stateIndex + 1].trim();
+                                            tableList.State.push(state);
 
                                             // Increment completed states count
                                             completedStates++;
 
                                             // If all states are retrieved, create the table
-                                            if (completedStates === clusterList.clusters.length && completedIPs === clusterList.clusters.length) {
-                                                var table = createTable(lists);
+                                            if (completedStates === infraList.infrastructures.length && completedIPs === infraList.infrastructures.length) {
+                                                var table = createTable(tableList);
                                                 createOrUpdateDialog(table, show);
                                             }
                                         }
@@ -225,106 +265,77 @@ define([
                                 }
                             };
 
-
-                            // Execute clusterState command
-                            var Kernel = Jupyter.notebook.kernel;
-                            Kernel.execute(stateCmd, stateCallbacks);
+                            // Execute infrastructureState command
+                            Kernel.execute(cmdState, callbackState);
                         }
 
-                        // Call clusterIP function for each cluster
-                        for (let i = 0; i < clusterList.clusters.length; i++) {
-                            var infrastructureID = clusterList.clusters[i].infrastructureID;
-                            var ipCmd = clusterIP(infrastructureID);
-                            console.log("ipCmd", ipCmd);
-                            var ipCallbacks = {
+                        // Iterate through each infrastructure to get its IP
+                        for (let i = 0; i < infraList.infrastructures.length; i++) {
+                            var infrastructureID = infraList.infrastructures[i].infrastructureID;
+                            var cmdIP = infrastructureIP(infrastructureID);
+                            console.log("cmdIP", cmdIP);
+                            var callbackIP = {
                                 // Callback function to handle IP output
                                 iopub: {
                                     output: function (ipData) {
-                                        var ipCheck = checkStream(ipData);
-                                        if (ipCheck < 0) return; // Not a stream
-                                        if (ipCheck > 0) { // Error message
-                                            lists.IP.push(ipData.content.text);
-                                            return;
-                                        }
+                                        // var ipCheck = checkStream(ipData);
+                                        // if (ipCheck < 0) return; // Not a stream
+                                        // if (ipCheck > 0) { // Error message
+                                        //     tableList.IP.push(ipData.content.text);
+                                        //     return;
+                                        // }
+
                                         // Successfully execution
-                                        var ip = ipData.content.text.trim(); // Trim to remove extra spaces
+                                        var ip = ipData.content.text.trim();
 
-                                        // Check if the output starts with "Secure"
                                         if (!ip.toLowerCase().includes("error")) {
-                                            // If it does, extract the IP from the output
-                                            ip = ip.split(" ").pop(); // Get the last word
+                                            // Extract the IP from the output (get the last word)
+                                            ip = ip.split(" ").pop();
                                         }
 
-                                        // Append IP to the lists
-                                        lists.IP.push(ip);
+                                        tableList.IP.push(ip);
 
                                         // Increment completed IPs count
                                         completedIPs++;
 
                                         // If all IPs are retrieved, create the table
-                                        if (completedStates === clusterList.clusters.length && completedIPs === clusterList.clusters.length) {
-                                            var table = createTable(lists);
+                                        if (completedStates === infraList.infrastructures.length && completedIPs === infraList.infrastructures.length) {
+                                            var table = createTable(tableList);
                                             createOrUpdateDialog(table, show);
                                         }
                                     }
                                 }
                             };
 
-                            // Execute clusterIP command
-                            Kernel.execute(ipCmd, ipCallbacks);
+                            // Execute infrastructureIP command
+                            Kernel.execute(cmdIP, callbackIP);
                         }
                     });
                 }
             }
         };
 
-        var createOrUpdateDialog = function (table, show) {
-            // Check if dialog has been already created
-            if ($("#dialog-deployments-list").length == 0) {
-                var listDeployment_dialog = $('<div id="dialog-deployments-list" title="Deployments list">')
-                    .append(table);
-                $("body").append(listDeployment_dialog);
-                $("#dialog-deployments-list").dialog();
-            } else {
-                // Clear dialog
-                $("#dialog-deployments-list").empty();
-
-                // Append table
-                $("#dialog-deployments-list").append(table);
-                $("#dialog-deployments-list").dialog("open");
-            }
-            if (show == false) {
-                $("#dialog-deployments-list").dialog("close");
-            }
-        };
-
-        // Execute command to retrieve cluster list
-        var cmd = "cat apricot_plugin/infrastructuresList.json";
-        var Kernel = Jupyter.notebook.kernel;
-        Kernel.execute(cmd, callbacks);
+        // Execute command to retrieve infrastructure list
+        Kernel.execute(cmdCatList, callbackStateAndIP);
     };
 
     var createDeployDialog = function () {
         console.log("Creating deploy window");
 
-        var deploy_dialog = $('<div id="dialog-deploy" title="Deploy infrastructure">')
+        var deployDialog = $('<div id="dialog-deploy" title="Deploy infrastructure">')
 
-        $("body").append(deploy_dialog);
+        $("body").append(deployDialog);
         $("#dialog-deploy").dialog()
-
-        stateDeployProvider();
-
-        //Close dialog
+        deployChooseProvider();
         $("#dialog-deploy").dialog("close");
-    }
+    };
 
     //****************//
     //*  Deployment  *//
     //****************// 
 
-    // select provider function
-    var stateDeployProvider = function () {
-
+    // Select provider
+    var deployChooseProvider = function () {
         //Get dialog
         var deployDialog = $("#dialog-deploy");
 
@@ -334,7 +345,6 @@ define([
         //Clear dialog
         deployDialog.empty();
 
-        //Informative text
         deployDialog.append($("<p>Select infrastructure provider:</p>"));
 
         deployDialog.dialog("option", "buttons",
@@ -342,7 +352,6 @@ define([
                 {
                     text: "OpenNebula",
                     click: function () {
-
                         //Check if the provider has been changed
                         if (deployInfo.deploymentType != "OpenNebula") {
                             clearDeployInfo();
@@ -350,13 +359,12 @@ define([
 
                         deployInfo.id = "one";
                         deployInfo.deploymentType = "OpenNebula";
-                        stateRecipeType();
+                        deployRecipeType();
                     }
                 },
                 {
                     text: "EC2",
                     click: function () {
-
                         //Check if the provider has been changed
                         if (deployInfo.deploymentType != "EC2") {
                             clearDeployInfo();
@@ -364,14 +372,12 @@ define([
 
                         deployInfo.id = "ec2";
                         deployInfo.deploymentType = "EC2";
-
-                        stateRecipeType();
+                        deployRecipeType();
                     },
                 },
                 {
                     text: "OpenStack",
                     click: function () {
-
                         //Check if the provider has been changed
                         if (deployInfo.deploymentType != "OpenStack") {
                             clearDeployInfo();
@@ -379,16 +385,14 @@ define([
 
                         deployInfo.id = "ost";
                         deployInfo.deploymentType = "OpenStack";
-
-                        stateRecipeType();
+                        deployRecipeType();
                     }
                 }
             ]);
-    }
+    };
 
-    // Deploy recipe type
-    var stateRecipeType = function () {
-
+    // Select recipe type
+    var deployRecipeType = function () {
         //Get dialog
         var deployDialog = $("#dialog-deploy");
 
@@ -405,29 +409,29 @@ define([
                 text: "Back",
                 icon: "ui-icon-circle-arrow-w",
                 showText: false,
-                click: stateDeployProvider
+                click: deployChooseProvider
             },
             "Simple-node-disk": function () {
                 deployInfo.recipe = "Simple-node-disk";
-                applications = ["galaxy", "ansible_tasks", "noderedvm", "minio_compose"];
-                stateRecipeFeatures();
+                childs = ["galaxy", "ansible_tasks", "noderedvm", "minio_compose"];
+                deployRecipeChilds();
             },
             "Slurm": function () {
                 deployInfo.recipe = "Slurm";
-                applications = ["slurm_cluster", "slurm_elastic", "slurm_galaxy", "docker_cluster"];
-                stateRecipeFeatures();
+                childs = ["slurm_cluster", "slurm_elastic", "slurm_galaxy", "docker_cluster"];
+                deployRecipeChilds();
             },
             "Kubernetes": function () {
                 deployInfo.recipe = "Kubernetes";
-                applications = ["kubernetes", "kubeapps", "prometheus", "minio_compose", "noderedvm", "influxdb", "argo"];
-                stateRecipeFeatures();
+                childs = ["kubernetes", "kubeapps", "prometheus", "minio_compose", "noderedvm", "influxdb", "argo"];
+                deployRecipeChilds();
             }
         });
 
-    }
+    };
 
-    var stateRecipeFeatures = function () {
-
+    // Select childs for main recipe
+    var deployRecipeChilds = function () {
         // Get dialog
         var deployDialog = $("#dialog-deploy");
 
@@ -437,14 +441,12 @@ define([
         // Clear dialog
         deployDialog.empty();
 
-        deployDialog.append($("<p>Select recipe optional features.</p><br>"));
-
-        // Create check boxes with optional app
+        deployDialog.append($("<p>Select optional recipe features:</p><br>"));
+        // Create check boxes with optional childs
         var ul = $('<ul class="checkbox-grid">');
-        for (let i = 0; i < applications.length; i++) {
-
+        for (let i = 0; i < childs.length; i++) {
             // Load YAML file
-            $.get('templates/' + applications[i].toLowerCase() + '.yaml', function (data) {
+            $.get('templates/' + childs[i].toLowerCase() + '.yaml', function (data) {
                 // Parse YAML content
                 var yamlContent = jsyaml.load(data);
                 var metadata = yamlContent.metadata;
@@ -453,14 +455,14 @@ define([
                 // Create line
                 let line = $('<li></li>');
                 // Create checkbox
-                let checkbox = $('<input type="checkbox" id="' + applications[i] + '-appCheckID" name="' + applications[i] + '" value="' + templateName + '">');
+                let checkbox = $('<input type="checkbox" id="' + childs[i] + '-checkID" name="' + childs[i] + '" value="' + templateName + '">');
                 // Create label
-                let label = $('<label for="' + applications[i] + '"></label>');
+                let label = $('<label for="' + childs[i] + '"></label>');
                 label.text(" " + templateName);
 
                 // Check if recipe is Slurm or Kubernetes
-                if (deployInfo.recipe === "Slurm" && applications[i] === "slurm_cluster" ||
-                    deployInfo.recipe === "Kubernetes" && applications[i] === "kubernetes") {
+                if (deployInfo.recipe === "Slurm" && childs[i] === "slurm_cluster" ||
+                    deployInfo.recipe === "Kubernetes" && childs[i] === "kubernetes") {
                     checkbox.prop('checked', true); // Check the checkbox
                     checkbox.prop('disabled', true); // Disable the checkbox
                 }
@@ -480,26 +482,25 @@ define([
         deployDialog.append(ul);
 
         deployDialog.dialog("option", "buttons", {
-            "Back": stateRecipeType,
+            "Back": deployRecipeType,
             "Next": function () {
-                // Set applications
-                var selectedApplications = [];
-                for (var i = 0; i < applications.length; i++) {
-                    var appId = applications[i] + "-appCheckID";
-                    if ($("#" + appId).is(":checked")) {
-                        selectedApplications.push(applications[i]);
+                // Set childs
+                var selectedChilds = [];
+                for (var i = 0; i < childs.length; i++) {
+                    var childID = childs[i] + "-checkID";
+                    if ($("#" + childID).is(":checked")) {
+                        selectedChilds.push(childs[i]);
                     }
                 }
-                deployInfo.apps = selectedApplications;
+                deployInfo.childs = selectedChilds;
 
-                stateDeployCredentials();
+                deployProviderCredentials();
             }
         });
-    }
+    };
 
-    // introduce credentials function
-    var stateDeployCredentials = function () {
-
+    // Introduce credentials
+    var deployProviderCredentials = function () {
         //Get dialog
         var deployDialog = $("#dialog-deploy");
 
@@ -558,7 +559,7 @@ define([
 
         deployDialog.dialog("option", "buttons", {
             "Back": function () {
-                stateRecipeFeatures();
+                deployRecipeChilds();
             },
             "Next": function () {
                 deployInfo.host = $('#hostIn').val();
@@ -567,16 +568,15 @@ define([
                 deployInfo.credential = $("#userPassIn").val();
 
                 if (deployInfo.deploymentType == "EC2") {
-                    stateDeployEC2Instances();
+                    deployEC2Credentials();
                 }
-                else { stateDeployVMSpec(); }
+                else { deployInfraConfiguration(); }
             }
         });
-    }
+    };
 
-    // state deploy-EC2-instances
-    var stateDeployEC2Instances = function () {
-
+    // Introduce EC2 credentials
+    var deployEC2Credentials = function () {
         //Get dialog
         var deployDialog = $("#dialog-deploy");
 
@@ -586,8 +586,7 @@ define([
         //Disable shortcuts
         Jupyter.keyboard_manager.disable();
 
-        //Informative text
-        deployDialog.append($("<p>Introduce required EC2 instance types.</p><br>"));
+        deployDialog.append($("<p>Introduce required EC2 instance types:</p><br>"));
 
         //Create form for input
         var form = $("<form>")
@@ -606,31 +605,29 @@ define([
         if (deployInfo.recipe == "Simple-node-disk") {
             // Port to be opened on AWS
             form.append("Port to be opened in AWS:<br>");
-            form.append($('<input id="clusterPort" type="number" value="1" min="1"><br>'));
+            form.append($('<input id="infrastructurePort" type="number" value="1" min="1"><br>'));
         }
 
         //Append elements to dialog
         deployDialog.append(form);
 
         deployDialog.dialog("option", "buttons", {
-            "Back": stateDeployCredentials,
+            "Back": deployProviderCredentials,
             "Next": function () {
-                //Availability zone
                 var AWSzone = $("#availabilityZoneIn").val();
                 var AMI = $("#amiIn").val();
                 var imageURL = "aws://" + AWSzone + "/" + AMI;
 
                 deployInfo.worker.image = imageURL;
-                deployInfo.port = $("#clusterPort").val();
+                deployInfo.port = $("#infrastructurePort").val();
 
-                stateDeployVMSpec();
+                deployInfraConfiguration();
             }
         });
-    }
+    };
 
-    // state deploy-one-worker
-    var stateDeployVMSpec = function () {
-
+    // Introduce infrastructure configuration
+    var deployInfraConfiguration = function () {
         //Get dialog
         var deployDialog = $("#dialog-deploy");
 
@@ -644,51 +641,52 @@ define([
         var form = $("<form>")
         form.append($("<p>Introduce worker VM specifications.</p><br>"));
 
-        form.append("Cluster name:<br>");
-        form.append($('<input id="clusterName" type="text" value="' + deployInfo.infName + '"><br>'));
+        form.append("Infrastructure name:<br>");
+        form.append($('<input id="infrastructureName" type="text" value="' + deployInfo.infName + '"><br>'));
 
         form.append("Number of VMs:<br>");
-        form.append($('<input id="clusterWorkers" type="number" value="1" min="1"><br>'));
+        form.append($('<input id="infrastructureWorkers" type="number" value="1" min="1"><br>'));
 
         form.append("Number of CPUs for each VM:<br>");
-        form.append($('<input id="clusterCPUs" type="number" value="1" min="1"><br>'));
+        form.append($('<input id="infrastructureCPUs" type="number" value="1" min="1"><br>'));
 
         form.append("Memory for each VM:<br>");
-        form.append($('<input id="clusterMemory" type="text" value="2 GB" min="2""><br>'));
+        form.append($('<input id="infrastructureMem" type="text" value="2 GB"><br>'));
 
         form.append("Size of the root disk of the VM(s):<br>");
-        form.append($('<input id="clusterDiskSize" type="text" value="20 GB" min="20"><br>'));
+        form.append($('<input id="infrastructureDiskSize" type="text" value="20 GB"><br>'));
 
         form.append("Number of GPUs for each VM:<br>");
-        form.append($('<input id="clusterGPUs" type="number" value="1" min="1"><br>'));
+        form.append($('<input id="infrastructureGPUs" type="number" value="1" min="1"><br>'));
 
         deployDialog.append(form);
 
         deployDialog.dialog("option", "buttons", {
             "Back": function () {
-                stateDeployCredentials();
+                deployProviderCredentials();
             },
             "Next": {
-                text: deployInfo.apps.length === 0 ? "Deploy" : "Next",
+                text: deployInfo.childs.length === 0 ? "Deploy" : "Next",
                 click: function () {
-                    deployInfo.infName = $("#clusterName").val();
-                    deployInfo.worker.num_instances = $("#clusterWorkers").val();
-                    deployInfo.worker.num_cpus = $("#clusterCPUs").val();
-                    deployInfo.worker.mem_size = $("#clusterMemory").val();
-                    deployInfo.worker.disk_size = $("#clusterDiskSize").val();
-                    deployInfo.worker.num_gpus = $("#clusterGPUs").val();
+                    deployInfo.infName = $("#infrastructureName").val();
+                    deployInfo.worker.num_instances = $("#infrastructureWorkers").val();
+                    deployInfo.worker.num_cpus = $("#infrastructureCPUs").val();
+                    deployInfo.worker.mem_size = $("#infrastructureMem").val();
+                    deployInfo.worker.disk_size = $("#infrastructureDiskSize").val();
+                    deployInfo.worker.num_gpus = $("#infrastructureGPUs").val();
 
-                    if (deployInfo.apps.length === 0) {
-                        stateDeployApp();
+                    if (deployInfo.childs.length === 0) {
+                        deployFinalRecipe();
                     } else {
-                        stateDeployFeatures();
+                        deployChildsConfiguration();
                     }
                 }
             }
         });
-    }
+    };
 
-    var stateDeployFeatures = function () {
+    // Introduce childs configuration
+    var deployChildsConfiguration = function () {
         // Get dialog
         var deployDialog = $("#dialog-deploy");
 
@@ -698,93 +696,24 @@ define([
         // Disable shortcuts
         Jupyter.keyboard_manager.disable();
 
-        var apps = deployInfo.apps;
+        var childs = deployInfo.childs;
 
         // Container for buttons
         var buttonsContainer = $('<div id="buttons-container"></div>');
-        deployDialog.append(buttonsContainer); // Moved the buttonsContainer creation to be added to the dialog
+        deployDialog.append(buttonsContainer);
 
-        // Dynamically create forms based on YAML templates
-        async function createForm(app, index) {
-            var form = $('<form id="form-' + app.toLowerCase() + '">');
-            var response = await $.get('templates/' + app.toLowerCase() + '.yaml');
-            var data = jsyaml.load(response);
-            var metadata = data.metadata;
-            var templateName = metadata.template_name; // Get the template name
-            var inputs = data.topology_template.inputs;
-
-            form.append("<p>Specifications for the " + templateName + " application.</p>");
-
-            // Create button with the template name
-            var appButton = $('<button class="formButton">' + templateName + '</button>');
-
-            appButton.click(function () {
-                var appName = $(this).text().toLowerCase();
-                deployDialog.find('form').hide(); // Hide all forms
-                form.show(); // Show the form for the selected app
-            });
-
-            // Append button to buttons container
-            buttonsContainer.append(appButton);
-
-            // Extract fields from YAML content
-            if (inputs) {
-                Object.keys(inputs).forEach(function (key) {
-                    var description = inputs[key].description;
-                    var defaultValue = inputs[key].default || '';
-                    var constraints = inputs[key].constraints;
-
-                    if (constraints && constraints.length > 0 && constraints[0].valid_values) {
-                        // If valid_values array exists, create dropdown menu
-                        var validValues = constraints[0].valid_values;
-                        var selectField = $('<select id="' + key + '" name="' + key + '">');
-                        validValues.forEach(function (value) {
-                            var option = $('<option value="' + value + '">' + value + '</option>');
-                            selectField.append(option);
-                        });
-                        form.append('<br><label for="' + key + '">' + description + ':</label><br>');
-                        form.append(selectField);
-                    } else {
-                        // Otherwise, create text input field
-                        var inputField = $('<input type="text" id="' + key + '" name="' + key + '">');
-                        form.append('<br><label for="' + key + '">' + description + ':</label><br>');
-                        form.append(inputField);
-                    }
-                });
-            } else {
-                form.append("<p>No inputs to be filled.</p><br>");
-            }
-
-            // Append form to dialog
-            deployDialog.append(form);
-
-            // Show the form for the first app by default
-            if (index !== 0) {
-                form.hide();
-            }
-
-            var nodeTemplates = data.topology_template.node_templates;
-            var outputs = data.topology_template.outputs;
-
-            return {
-                form,
-                nodeTemplates,
-                outputs
-            }; // Return the form, node templates, and outputs for later use
-        }
-
-        Promise.all(apps.map(createForm)).then((forms, nodeTemplates, outputs) => {
+        Promise.all(childs.map((app, index) => createForm(app, index, deployDialog, buttonsContainer))).then((forms, nodeTemplates, outputs) => {
             var nodeTemplates = forms.map(form => form.nodeTemplates);
             var outputs = forms.map(form => form.outputs);
             deployDialog.dialog("option", "buttons", {
                 "Back": function () {
-                    stateDeployVMSpec();
+                    deployInfraConfiguration();
                 },
                 "Deploy": function () {
                     var userInputs = forms.map(async function (formData) {
                         var form = formData.form;
-                        var appName = form.attr('id').replace('form-', '');
-                        var recipeContent = await $.get('templates/' + appName + '.yaml');
+                        var childName = form.attr('id').replace('form-', '');
+                        var recipeContent = await $.get('templates/' + childName + '.yaml');
                         var recipeData = jsyaml.load(recipeContent);
                         var recipeInputs = recipeData.topology_template.inputs;
 
@@ -800,21 +729,22 @@ define([
                             };
                         });
 
+                        // Return the outputs to create final recipe to deploy
                         return {
-                            name: appName,
+                            name: childName,
                             inputs: inputsWithValues,
                             nodeTemplates: nodeTemplates,
                             outputs: outputs
                         };
                     });
-                    stateDeployApp(userInputs, nodeTemplates, outputs);
+                    deployFinalRecipe(userInputs, nodeTemplates, outputs);
                 }
             });
         });
-
     };
 
-    var stateDeployApp = function (populatedTemplates, nodeTemplates, outputs) {
+    // Deploy final recipe
+    var deployFinalRecipe = function (populatedTemplates, nodeTemplates, outputs) {
         var deployDialog = $("#dialog-deploy");
 
         // Clear dialog
@@ -823,10 +753,10 @@ define([
         // Disable shortcuts
         Jupyter.keyboard_manager.disable();
 
-        // Deployment logic
+        // Deploy only one infrastructure at once
         if (deploying) {
             alert("Previous deploy has not finished.");
-            return; // Deploy only one infrastructure at once
+            return;
         }
         deploying = true;
 
@@ -835,7 +765,7 @@ define([
             try {
                 var parsedConstantTemplate = jsyaml.load(content);
 
-                // Add infra_name and a hash to metadata field
+                // Add infra_name field and a hash to metadata field
                 var hash = await computeHash(JSON.stringify(deployInfo));
                 parsedConstantTemplate.metadata = parsedConstantTemplate.metadata || {};
                 parsedConstantTemplate.metadata.infra_name = "jupyter_" + hash;
@@ -863,7 +793,7 @@ define([
                     var yamlContent = jsyaml.dump(resolvedTemplate);
 
                     // Create deploy script
-                    var deployCmd = deployIMCommand(deployInfo, yamlContent);
+                    var cmdDeployIMCommand = deployIMCommand(deployInfo, yamlContent);
 
                     // Clear dialog
                     deployDialog.empty();
@@ -875,25 +805,25 @@ define([
                     deployDialog.dialog("option", "buttons", {});
 
                     // Create kernel callback
-                    var deployCallbacks = {
+                    var callbackDeployInfra = {
                         iopub: {
                             output: function (data) {
                                 // Check if the content contains an error
-                                if (data.content.text.includes("ERROR")) {
-                                    // Execute the error handling code if "ERROR" is found
+                                if (data.content.text.toLowerCase().includes("error")) {
+                                    // Execute the error handling code if "error" is found
                                     deploying = false;
                                     alert(data.content.text);
                                     console.log(data.content.text);
-                                    if (deployInfo.apps.length === 0) {
-                                        stateDeployVMSpec();
-                                    } else stateDeployFeatures();
+                                    if (deployInfo.childs.length === 0) {
+                                        deployInfraConfiguration();
+                                    } else deployChildsConfiguration();
                                 } else {
                                     var pubtext = data.content.text.replace("\r", "\n");
                                     deploying = false;
                                     alert(pubtext);
                                     console.log(pubtext);
 
-                                    // Extract ID using regular expression
+                                    // Extract infrastructure ID
                                     var idMatch = pubtext.match(/ID: ([\w-]+)/);
                                     var infrastructureID = idMatch[1];
 
@@ -913,8 +843,8 @@ define([
                                         // api_version: deployInfo.apiVersion,
                                     };
 
-                                    var saveCmd = saveToClusterList(jsonObj);
-                                    Kernel.execute(saveCmd);
+                                    var cmdSaveToInfrastructureList = saveToInfrastructureList(jsonObj);
+                                    Kernel.execute(cmdSaveToInfrastructureList);
 
                                     createDeployDialog();
                                 }
@@ -923,14 +853,83 @@ define([
                     };
 
                     // Deploy using IM
-                    var Kernel = Jupyter.notebook.kernel;
-                    Kernel.execute(deployCmd, deployCallbacks);
+                    Kernel.execute(cmdDeployIMCommand, callbackDeployInfra);
 
                 });
             } catch (error) {
                 console.error("Error parsing simple-node-disk.yaml:", error);
             }
         });
+    };
+
+    //**********************//
+    //* Auxiliar functions *//
+    //**********************//
+
+    // Dynamically create child forms based on YAML templates
+    async function createForm(app, index, deployDialog, buttonsContainer) {
+        var form = $('<form id="form-' + app.toLowerCase() + '">');
+        var response = await $.get('templates/' + app.toLowerCase() + '.yaml');
+        var data = jsyaml.load(response);
+        var metadata = data.metadata;
+        var templateName = metadata.template_name;
+        var inputs = data.topology_template.inputs;
+        var nodeTemplates = data.topology_template.node_templates;
+        var outputs = data.topology_template.outputs;
+        // Create button with the template name
+        var appButton = $('<button class="formButton">' + templateName + '</button>');
+
+        form.append("<p>Specifications for the " + templateName + " application.</p>");
+
+        // Hide all forms and only show the form for the selected app
+        appButton.click(function () {
+            deployDialog.find('form').hide();
+            form.show();
+        });
+
+        // Append button to buttons container
+        buttonsContainer.append(appButton);
+
+        // Append form to dialog
+        deployDialog.append(form);
+
+        // Show the form for the first app by default
+        if (index !== 0) {
+            form.hide();
+        }
+
+        // Extract fields from YAML content
+        if (inputs) {
+            Object.keys(inputs).forEach(function (key) {
+                var description = inputs[key].description;
+                var constraints = inputs[key].constraints;
+
+                if (constraints && constraints.length > 0 && constraints[0].valid_values) {
+                    // If valid_values array exists, create dropdown menu
+                    var validValues = constraints[0].valid_values;
+                    var selectField = $('<select id="' + key + '" name="' + key + '">');
+                    validValues.forEach(function (value) {
+                        var option = $('<option value="' + value + '">' + value + '</option>');
+                        selectField.append(option);
+                    });
+                    form.append('<br><label for="' + key + '">' + description + ':</label><br>');
+                    form.append(selectField);
+                } else {
+                    // Otherwise, create text input field
+                    var inputField = $('<input type="text" id="' + key + '" name="' + key + '">');
+                    form.append('<br><label for="' + key + '">' + description + ':</label><br>');
+                    form.append(inputField);
+                }
+            });
+        } else {
+            form.append("<p>No inputs to be filled.</p><br>");
+        }
+
+        return {
+            form,
+            nodeTemplates,
+            outputs
+        };
     };
 
     var deployIMCommand = function (obj, mergedTemplate) {
@@ -946,7 +945,7 @@ define([
         cmd += "mkfifo $PWD/" + pipeAuth + "\n";
         // Save mergedTemplate as a YAML file
         cmd += "echo '" + mergedTemplate + "' > ~/.imclient/templates/" + imageRADL + ".yaml \n";
-        // Command to create the infrastructure manager client credentials
+        // Command to create the IM-cli credentials
         if (obj.deploymentType == "OpenStack") {
             cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\n" +
                 "id = " + obj.id + "; type = " + obj.deploymentType + "; host = " + obj.host + "; username = " + obj.user + "; password = " + obj.credential + "; tenant = " + obj.tenant + ";\" > $PWD/" + pipeAuth + " & \n";
@@ -961,7 +960,7 @@ define([
         cmd += "imOut=\"`python3 /usr/local/bin/im_client.py -a $PWD/" + pipeAuth + " create " + "~/.imclient/templates/" + imageRADL + ".yaml -r https://im.egi.eu/im" + " `\" \n";
         // Remove pipe
         cmd += "rm $PWD/" + pipeAuth + " &> /dev/null \n";
-        // Print im output on stderr or stdout
+        // Print IM output on stderr or stdout
         cmd += "if [ $? -ne 0 ]; then \n";
         cmd += "    >&2 echo -e $imOut \n";
         cmd += "    exit 1\n";
@@ -973,13 +972,16 @@ define([
         return cmd;
     };
 
-    var saveToClusterList = function (obj) {
+    var saveToInfrastructureList = function (obj) {
         // Only works if the { "infrastructures": [ ] } structure exists in the JSON file
         var filePath = "$PWD/apricot_plugin/infrastructuresList.json";
         var cmd = "%%bash \n";
-        cmd += "existingJson=$(cat " + filePath + ")\n"; // Read existing JSON
-        cmd += "newJson=$(echo $existingJson | jq '.infrastructures += [" + JSON.stringify(obj) + "]')\n"; // Append new object
-        cmd += "echo $newJson > " + filePath + "\n"; // Write updated JSON back to file
+        // Read infrastructureList.json
+        cmd += "existingJson=$(cat " + filePath + ")\n";
+        // Append new object
+        cmd += "newJson=$(echo $existingJson | jq '.infrastructures += [" + JSON.stringify(obj) + "]')\n";
+        // Write updated JSON back to file
+        cmd += "echo $newJson > " + filePath + "\n";
         console.log("cmd", cmd);
         return cmd;
     };
@@ -987,7 +989,6 @@ define([
     async function mergeTOSCARecipes(parsedConstantTemplate, userInputs, nodeTemplates, outputs) {
         try {
             var mergedTemplate = JSON.parse(JSON.stringify(parsedConstantTemplate));
-
             // Initialize populatedTemplates as an empty array
             var populatedTemplates = [];
 
@@ -1051,7 +1052,7 @@ define([
             console.error("Error merging TOSCA recipes:", error);
             return JSON.parse(JSON.stringify(parsedConstantTemplate)); // Return a copy of the parsedConstantTemplate
         }
-    }
+    };
 
     async function computeHash(input) {
         const msgUint8 = new TextEncoder().encode(input);
@@ -1059,19 +1060,19 @@ define([
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         return hashHex;
-    }
+    };
 
-    var clusterState = function (cluster) {
-        var infrastructureID = cluster.infrastructureID;
-        var id = cluster.providerId;
-        var type = cluster.type;
-        var host = cluster.host;
-        var user = cluster.user;
-        var pass = cluster.pass;
-        var tenant = cluster.tenant;
-        // var domain = cluster.domain;
-        // var authVersion = cluster.auth_version;
-        // var api_version = cluster.api_version;
+    var infrastructureState = function (infrastructure) {
+        var infrastructureID = infrastructure.infrastructureID;
+        var id = infrastructure.providerId;
+        var deploymentType = infrastructure.type;
+        var host = infrastructure.host;
+        var user = infrastructure.user;
+        var pass = infrastructure.pass;
+        var tenant = infrastructure.tenant;
+        // var domain = infrastructure.domain;
+        // var authVersion = infrastructure.auth_version;
+        // var api_version = infrastructure.api_version;
 
         var pipeAuth = "auth-pipe";
         var cmd = "%%bash \n";
@@ -1082,17 +1083,17 @@ define([
         cmd += "mkfifo $PWD/" + pipeAuth + "\n";
         // Command to create the infrastructure manager client credentials
         cmd += "echo -e \"id = im; type = InfrastructureManager; username = user; password = pass;\n";
-        
+
         // Additional credentials based on deploymentType
-        if (type === "OpenStack") {
-            cmd += "id = " + id + "; type = " + type + "; host = " + host + "; username = " + user + "; password = " + pass + "; tenant = " + tenant + ";\" > $PWD/" + pipeAuth + " & \n";
-        } else if (type === "OpenNebula") {
-            cmd += "id = " + id + "; type = " + type + "; host = " + host + "; username = " + user + "; password = " + pass + ";\" > $PWD/" + pipeAuth + " & \n";
-        } else if (type === "AWS") {
-            cmd += "id = " + id + "; type = " + type + "; host = " + host + "; username = " + user + "; password = " + pass + ";\" > $PWD/" + pipeAuth + " & \n";
+        if (deploymentType === "OpenStack") {
+            cmd += "id = " + id + "; type = " + deploymentType + "; host = " + host + "; username = " + user + "; password = " + pass + "; tenant = " + tenant + ";\" > $PWD/" + pipeAuth + " & \n";
+        } else if (deploymentType === "OpenNebula") {
+            cmd += "id = " + id + "; type = " + deploymentType + "; host = " + host + "; username = " + user + "; password = " + pass + ";\" > $PWD/" + pipeAuth + " & \n";
+        } else if (deploymentType === "AWS") {
+            cmd += "id = " + id + "; type = " + deploymentType + "; host = " + host + "; username = " + user + "; password = " + pass + ";\" > $PWD/" + pipeAuth + " & \n";
         }
         cmd += "stateOut=\"`python3 /usr/local/bin/im_client.py getstate " + infrastructureID + " -r https://im.egi.eu/im -a $PWD/" + pipeAuth + "`\" \n";
-    
+
         cmd += "if [ $? -ne 0 ]; then \n";
         cmd += "    >&2 echo -e $stateOut \n";
         cmd += "    exit 1\n";
@@ -1105,7 +1106,7 @@ define([
         return cmd;
     };
 
-    var clusterIP = function (infrastructureID) {
+    var infrastructureIP = function (infrastructureID) {
         var pipeAuth = "auth-pipe";
         var cmd = "%%bash \n";
         cmd += "PWD=`pwd` \n";
@@ -1142,44 +1143,20 @@ define([
         }
         //Is not a stream message
         return -1;
-    }
-
-    //****************//
-    //*Dialogs handle*//
-    //****************//    
-
-    var toggleDeploymentList = function () {
-        if ($("#dialog-deployments-list").dialog("isOpen")) {
-            $("#dialog-deployments-list").dialog("close");
-        } else {
-            creatListDeploymentsDialog(true);
-            $("#dialog-deployments-list").dialog("moveToTop");
-        }
-        Jupyter.notebook.set_dirty();
-    }
-
-    var toggleDeploy = function () {
-        if ($("#dialog-deploy").dialog("isOpen")) {
-            $("#dialog-deploy").dialog("close");
-        } else {
-            $("#dialog-deploy").dialog("open");
-            $("#dialog-deploy").dialog("moveToTop");
-        }
-        Jupyter.notebook.set_dirty();
-    }
+    };
 
     //*******************//
     //* Jupyter handler *//
     //*******************//        
 
     var loadJupyterExtension = function () {
-        console.log("Initialize deployment plugin");
+        console.log("Initialize APRICOT plugin");
         loadCSS();
         listDeploymentsButton();
-        deployButton();
-        creatListDeploymentsDialog(false);
+        deployMenuButton();
+        createListDeploymentsDialog(false);
         createDeployDialog();
-    }
+    };
 
     return {
         load_ipython_extension: loadJupyterExtension

@@ -840,7 +840,7 @@ define([
                                         tenant: deployInfo.tenant,
                                         // domain: deployInfo.domain,
                                         // authVersion: deployInfo.authVersion,
-                                        // api_version: deployInfo.apiVersion,
+                                        // api_version: deployInfo.apiVersion, // Not needed
                                     };
 
                                     var cmdSaveToInfrastructureList = saveToInfrastructureList(jsonObj);
@@ -1072,7 +1072,7 @@ define([
         var tenant = infrastructure.tenant;
         // var domain = infrastructure.domain;
         // var authVersion = infrastructure.auth_version;
-        // var api_version = infrastructure.api_version;
+        // var api_version = infrastructure.api_version; // Not needed
 
         var pipeAuth = "auth-pipe";
         var cmd = "%%bash \n";

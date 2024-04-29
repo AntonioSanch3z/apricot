@@ -137,6 +137,6 @@ configure clues_slurm (
       command: python setup.py build --slurm=/usr/local chdir=/tmp/pyslurm creates=/tmp/pyslurm/pyslurm/pyslurm.c
 
     - name: install pyslurm
-      command: python setup.py install chdir=/tmp/pyslurm creates=/usr/local/lib/python2.7/dist-packages/pyslurm
+      command: python setup.py install chdir=/tmp/pyslurm creates=/usr/local/lib/python3.10/dist-packages/pyslurm
 @end
 )

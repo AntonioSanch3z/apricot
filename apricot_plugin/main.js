@@ -39,10 +39,10 @@ define([
             "recipe": recipe,
             "id": "",
             "deploymentType": "",
-            "host": "ramses.i3m.upv.es:2633",
+            "host": "",
             "tenant": "",
-            "user": "asanchez",
-            "credential": "RamsesOpenNebula9",
+            "user": "",
+            "credential": "",
             "port": "",
             "infName": "infra-name",
             "worker": {
